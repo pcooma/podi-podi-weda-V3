@@ -1,11 +1,10 @@
-const CACHE_NAME = "podi-podi-weda-v27";
+const CACHE_NAME = "podi-podi-weda-v28";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css?v=27",
   "./app.js?v=27",
-  "./backend-client.js?v=1",
-  "./config.js",
+  "./backend-client.js?v=2",
   "./manifest.webmanifest"
 ];
 
@@ -23,6 +22,12 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  // config.js carries the live Firebase/Apps Script settings. Always fetch it
+  // fresh so a go-live config push takes effect without a cache-version bump.
+  if (new URL(event.request.url).pathname.endsWith("/config.js")) {
+    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+    return;
+  }
   if (event.request.mode === "navigate") {
     event.respondWith(fetch(event.request).then((response) => {
       const copy = response.clone();

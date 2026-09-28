@@ -1,27 +1,25 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
-import {
-  createUserWithEmailAndPassword,
-  getAuth,
-  onAuthStateChanged,
-  sendEmailVerification,
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
-  signOut
-} from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
-
+// The Firebase SDK is loaded lazily, and only when a real configuration is
+// present. In preview/demo mode nothing is fetched from gstatic, so the site
+// works fully offline with no external dependency.
 const config = window.PODI_PODI_CONFIG;
 const listeners = new Set();
 let auth = null;
 let currentUser = null;
+let fb = null;
 
 function isConfigured() {
   const backendUrl = config?.appsScriptUrl || config?.apiBaseUrl;
   return Boolean(backendUrl && config?.firebase?.apiKey && !config.firebase.apiKey.includes("replace-me"));
 }
 
-if (isConfigured()) {
-  auth = getAuth(initializeApp(config.firebase));
-  onAuthStateChanged(auth, (user) => {
+async function loadFirebase() {
+  const [appMod, authMod] = await Promise.all([
+    import("https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js"),
+    import("https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js")
+  ]);
+  fb = authMod;
+  auth = authMod.getAuth(appMod.initializeApp(config.firebase));
+  authMod.onAuthStateChanged(auth, (user) => {
     currentUser = user;
     listeners.forEach((listener) => listener(user));
   });
@@ -103,13 +101,13 @@ window.PodiBackend = {
     return () => listeners.delete(listener);
   },
   async register(email, password) {
-    const credential = await createUserWithEmailAndPassword(auth, email, password);
-    await sendEmailVerification(credential.user);
+    const credential = await fb.createUserWithEmailAndPassword(auth, email, password);
+    await fb.sendEmailVerification(credential.user);
     return credential;
   },
-  login: (email, password) => signInWithEmailAndPassword(auth, email, password),
-  logout: () => signOut(auth),
-  resetPassword: (email) => sendPasswordResetEmail(auth, email),
+  login: (email, password) => fb.signInWithEmailAndPassword(auth, email, password),
+  logout: () => fb.signOut(auth),
+  resetPassword: (email) => fb.sendPasswordResetEmail(auth, email),
   getMe: async () => ({ user: await api(config.appsScriptUrl ? "get_me" : "/v1/me") }),
   saveProfile: (profile) => api(config.appsScriptUrl ? "save_profile" : "/v1/provider-profile", {
     method: "PUT",
@@ -122,4 +120,10 @@ window.PodiBackend = {
   createBooking: (booking) => api("create_booking", {method: "POST", body: JSON.stringify(booking)})
 };
 
-window.dispatchEvent(new CustomEvent("podi-backend-ready"));
+if (isConfigured()) {
+  loadFirebase()
+    .catch((error) => console.error("Firebase initialisation failed:", error))
+    .finally(() => window.dispatchEvent(new CustomEvent("podi-backend-ready")));
+} else {
+  window.dispatchEvent(new CustomEvent("podi-backend-ready"));
+}
