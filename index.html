@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f5c542">
     <title>පොඩි පොඩි වැඩ | සේවා ලබාගන්න</title>
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=20">
+    <link rel="stylesheet" href="styles.css?v=21">
   </head>
   <body>
     <div class="app-shell">
@@ -36,11 +36,36 @@
             <h1>වැඩට ගැළපෙන මිනිස්සු. මිනිස්සුන්ට ගැළපෙන වැඩ.</h1>
           </div>
           <div class="top-actions">
+            <span class="backend-status demo" id="backendStatus">Demo mode</span>
+            <button class="ghost-action" id="accountToggle" type="button">ගිණුම</button>
             <button class="icon-btn" id="resetDemo" type="button" aria-label="Reset demo data" title="Reset demo data">
               <span aria-hidden="true">↺</span>
             </button>
           </div>
         </header>
+
+        <section class="account-panel" id="accountPanel" hidden aria-label="Account access">
+          <div>
+            <p class="eyebrow">ආරක්ෂිත ගිණුම</p>
+            <h2>Login / Register</h2>
+            <p id="accountStatus">Google backend configuration එකතු කළ පසු secure accounts ක්‍රියාත්මක වේ.</p>
+          </div>
+          <form id="accountForm" class="account-form">
+            <label>
+              <span>Email</span>
+              <input id="accountEmail" type="email" autocomplete="email" required>
+            </label>
+            <label>
+              <span>Password</span>
+              <input id="accountPassword" type="password" minlength="8" autocomplete="current-password" required>
+            </label>
+            <div class="row-actions">
+              <button class="primary-action" id="loginButton" type="submit">Login</button>
+              <button class="ghost-action" id="registerButton" type="button">Register</button>
+              <button class="ghost-action" id="logoutButton" type="button" hidden>Logout</button>
+            </div>
+          </form>
+        </section>
 
         <section class="landing-band" aria-label="Main entry points">
           <div class="landing-copy">
@@ -245,6 +270,10 @@
                     <input id="providerPhone" required value="" inputmode="tel" placeholder="07XXXXXXXX">
                   </label>
                 </div>
+                <label>
+                  <span>Unique username (English letters/numbers)</span>
+                  <input id="providerUsername" required minlength="3" maxlength="30" pattern="[A-Za-z0-9._-]+" placeholder="උදා: sunil.perera28">
+                </label>
                 <div class="two-col">
                   <label>
                     <span>ඔබේ ප්‍රධාන වෘත්තිය හෝ සේවාව</span>
@@ -330,6 +359,16 @@
                 </label>
                 <label>
                   <span id="documentLabel">ජාතික හැඳුනුම්පත හෝ ඔබගේ ඡායාරූපයක් (පසුව වුණත් ඇතුළත් කරන්න පුළුවන්)</span>
+                  <select id="providerDocumentType">
+                    <option value="certificate">Certificate / qualification</option>
+                    <option value="nic_front">NIC front</option>
+                    <option value="nic_back">NIC back</option>
+                    <option value="selfie">Selfie / profile identity photo</option>
+                    <option value="licence">Professional / driving licence</option>
+                    <option value="business_registration">Business registration</option>
+                    <option value="reference">Reference</option>
+                    <option value="portfolio">Public portfolio sample</option>
+                  </select>
                   <input id="providerDocs" type="file" multiple accept="image/*,.pdf">
                 </label>
                 <p class="form-note">ඔබේ ලියාපදිංචිය තහවුරු කළ පසු, ඔබට ගැළපෙන වැඩ SMS හෝ WhatsApp මගින් දැනුම් දෙනු ලැබේ.</p>
@@ -390,6 +429,9 @@
       </main>
     </div>
 
-    <script src="app.js?v=20"></script>
+    <script>window.PODI_PODI_CONFIG = window.PODI_PODI_CONFIG || null;</script>
+    <script src="config.js"></script>
+    <script src="app.js?v=21"></script>
+    <script type="module" src="backend-client.js?v=1"></script>
   </body>
 </html>

@@ -182,6 +182,59 @@ h3 {
   gap: 8px;
 }
 
+.backend-status {
+  border-radius: 999px;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  background: #dff4e8;
+  color: #145b36;
+}
+
+.backend-status.demo {
+  background: #fff1c7;
+  color: #765200;
+}
+
+.account-panel {
+  margin: 0 0 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(300px, 1.5fr);
+  gap: 1rem;
+  align-items: end;
+}
+
+.account-panel[hidden] {
+  display: none;
+}
+
+.account-panel h2,
+.account-panel p {
+  margin: 0.25rem 0;
+}
+
+.account-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.account-form .row-actions {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+  .account-panel,
+  .account-form {
+    grid-template-columns: 1fr;
+  }
+}
+
 .icon-btn {
   width: 42px;
   height: 42px;

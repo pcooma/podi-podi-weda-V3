@@ -48,19 +48,19 @@ Open bidding job board, in-app chat, masked calling, escrow/fund-holding, worker
 | `admin` | Internal staff: verification, disputes, moderation, config. |
 | `superadmin` | Full access incl. role management and audit export. |
 
-A single `users` row holds one role for MVP (a phone number is either a client or a worker, not both — simplest correct model).
+A single authenticated person may hold both `client` and `worker` roles. The permanent internal identity is the Firebase `uid`; email, verified phone and a unique normalized username are identifiers attached to that account, not database primary keys.
 
 ---
 
 ## 4. System architecture
 
 ```
-[ Next.js PWA ]  --- HTTPS/REST --->  [ NestJS API ]  --->  [ PostgreSQL + PostGIS ]
-  - client app                          - auth/OTP             - core data
+[ Web/PWA ]  --- HTTPS/REST --->  [ Cloud Run TypeScript API ]  --->  [ Cloud SQL PostgreSQL + PostGIS ]
+  - client app                       - Firebase token verification        - core data
   - worker app                          - matching             [ Redis ]
   - /admin (role-gated)                 - jobs/bookings          - OTP store, rate limit,
                                          - payments webhooks       lead-delivery queue
-                                         - notifications        [ S3-compatible storage ]
+                                         - notifications        [ Google Cloud Storage ]
                                               |                   - private PII bucket (signed URLs)
                                               |                   - public profile media
                                    +-------+--------+--------+-----------+
@@ -79,12 +79,12 @@ Single backend service for MVP (modular monolith in NestJS, not microservices). 
 |-------|--------|
 | Frontend | Next.js (App Router), React, TypeScript, Tailwind CSS, mobile-first PWA |
 | i18n | `next-intl`, locales `si` (default), `ta`, `en`, switchable. Bundle a Sinhala Unicode webfont (e.g. Noto Sans Sinhala); verify rendering/input on low-end Android. |
-| Backend | NestJS (TypeScript), REST, modular monolith |
+| Backend | TypeScript REST modular monolith on Google Cloud Run (foundation implemented with Express; preserve module boundaries) |
 | ORM | Prisma |
 | Database | PostgreSQL 15+ with PostGIS extension |
 | Cache/queue | Redis (OTP TTL, rate limiting, BullMQ for lead-delivery jobs) |
-| Object storage | S3-compatible (AWS S3 or Cloudflare R2); **private** bucket for PII, signed URLs only |
-| Auth | Phone OTP → JWT (access + refresh). Passwords optional, not required for MVP. |
+| Object storage | Google Cloud Storage; **private** bucket for PII, short-lived signed upload/download URLs only |
+| Auth | Firebase Authentication. Verified email/password is implemented first; verified phone and Google sign-in may be linked to the same Firebase `uid`. The application never stores passwords. |
 | SMS | Pluggable provider interface (implement one local SL gateway adapter + a Twilio fallback adapter). |
 | WhatsApp | WhatsApp Cloud API adapter behind the same notification interface. |
 | Payments | PSP adapter interface; implement PayHere first. **Platform never holds funds.** |

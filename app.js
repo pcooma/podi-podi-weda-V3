@@ -2351,16 +2351,19 @@ function bookProvider(jobId, providerId) {
     : `Booking confirmed. Commission: රු. ${commissionAmount.toLocaleString()}`);
 }
 
-function addProvider() {
+async function addProvider() {
   const name = $("#providerName").value.trim();
   const phone = $("#providerPhone").value.trim();
   if (!name) { toast("ඔබේ නම ඇතුළත් කරන්න."); return; }
   if (!phone || !/^07[0-9]{8}$/.test(phone)) { toast("07XXXXXXXX format දුරකථන අංකයක් ඇතුළත් කරන්න."); return; }
   const category = $("#providerCategory").value;
+  const username = $("#providerUsername").value.trim();
+  if (!/^[A-Za-z0-9._-]{3,30}$/.test(username)) { toast("Unique username එක English letters, numbers, dot, underscore හෝ dash වලින් දාන්න."); return; }
   const meta = categoryBySlug(category);
   const selectedSkills = $all("input[name='providerSkill']:checked").map((input) => input.value);
   const evidence = $("#providerEvidence").value.trim();
   const supplyMode = $("#providerSupply").value;
+  const backend = window.PodiBackend;
   const pricing = collectProviderPricing();
   const supplyCapabilities = supplyMode === "materials"
     ? ["labour_only", "tools", "materials"]
@@ -2370,7 +2373,8 @@ function addProvider() {
   const provider = {
     id: `w-${Date.now()}`,
     name: $("#providerName").value,
-    phone: $("#providerPhone").value,
+    username,
+    phone: backend?.isConfigured() ? undefined : phone,
     category,
     group: meta.group,
     workerType: meta.workerType,
@@ -2406,6 +2410,29 @@ function addProvider() {
       : `කළ හැකි වැඩ: ${(selectedSkills.length ? selectedSkills : meta.skills.slice(0, 2)).join(", ")}`,
     image: "linear-gradient(135deg,#135e4b,#a96d18)"
   };
+
+  if (backend?.isConfigured()) {
+    if (!backend.currentUser()) { toast("Profile save කිරීමට login වෙන්න."); return; }
+    try {
+      await backend.saveProfile({
+        displayName: provider.name,
+        username,
+        phone,
+        district: provider.district,
+        category: provider.category,
+        skills: provider.skills,
+        experienceYears: provider.experience,
+        evidenceSummary: evidence,
+        preferredLanguage: "si"
+      });
+      const documents = [...$("#providerDocs").files];
+      const documentType = $("#providerDocumentType").value;
+      for (const file of documents) await backend.uploadDocument(file, documentType);
+    } catch (error) {
+      toast(error.message || "Secure profile save failed.");
+      return;
+    }
+  }
   state.providers.unshift(provider);
   state.audit.push(`provider.submitted:${provider.id}`);
   saveState();
@@ -2565,9 +2592,9 @@ on("#jobForm", "submit", (event) => {
   });
 });
 
-on("#providerForm", "submit", (event) => {
+on("#providerForm", "submit", async (event) => {
   event.preventDefault();
-  addProvider();
+  await addProvider();
 });
 
 on("#providerCategory", "change", () => {
@@ -2600,6 +2627,80 @@ on("#resetDemo", "click", () => {
   render();
   toast("Demo data reset.");
 });
+
+on("#accountToggle", "click", () => {
+  const panel = $("#accountPanel");
+  panel.hidden = !panel.hidden;
+});
+
+async function runAccountAction(action) {
+  const backend = window.PodiBackend;
+  if (!backend?.isConfigured()) { toast("පළමුව Google backend config එකතු කරන්න."); return; }
+  const email = $("#accountEmail").value.trim();
+  const password = $("#accountPassword").value;
+  try {
+    await action(backend, email, password);
+  } catch (error) {
+    toast(error.message || "Account action failed.");
+  }
+}
+
+on("#accountForm", "submit", async (event) => {
+  event.preventDefault();
+  await runAccountAction((backend, email, password) => backend.login(email, password));
+});
+
+on("#registerButton", "click", async () => {
+  await runAccountAction((backend, email, password) => backend.register(email, password));
+});
+
+on("#logoutButton", "click", async () => {
+  await runAccountAction((backend) => backend.logout());
+});
+
+function initializeBackendStatus() {
+  const backend = window.PodiBackend;
+  if (!backend) return;
+  const status = $("#backendStatus");
+  const accountStatus = $("#accountStatus");
+  if (!backend.isConfigured()) {
+    status.textContent = "Demo mode";
+    status.classList.add("demo");
+    return;
+  }
+  status.textContent = "Secure backend";
+  status.classList.remove("demo");
+  backend.onAuthChange(async (user) => {
+    accountStatus.textContent = user ? `Login: ${user.email || user.uid}` : "Login කර ඔබේ profile එක secure ලෙස save කරන්න.";
+    $("#loginButton").hidden = Boolean(user);
+    $("#registerButton").hidden = Boolean(user);
+    $("#logoutButton").hidden = !user;
+    $("#accountEmail").disabled = Boolean(user);
+    $("#accountPassword").disabled = Boolean(user);
+    if (user) {
+      try {
+        const { user: saved } = await backend.getMe();
+        if (!saved) return;
+        if (saved.display_name) $("#providerName").value = saved.display_name;
+        if (saved.username) $("#providerUsername").value = saved.username;
+        if (saved.contact_phone) $("#providerPhone").value = saved.contact_phone;
+        if (saved.district) $("#providerDistrict").value = saved.district;
+        if (saved.provider_category) {
+          $("#providerCategory").value = saved.provider_category;
+          renderRoleRegistration();
+        }
+        if (Number.isFinite(Number(saved.experience_years))) $("#providerExperience").value = saved.experience_years;
+        if (saved.evidence_summary) $("#providerEvidence").value = saved.evidence_summary;
+        const savedSkills = new Set(saved.skills || []);
+        $all("input[name='providerSkill']").forEach((input) => { input.checked = savedSkills.has(input.value); });
+      } catch (error) {
+        toast(error.message || "Saved profile load failed.");
+      }
+    }
+  });
+}
+
+window.addEventListener("podi-backend-ready", initializeBackendStatus, { once: true });
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
