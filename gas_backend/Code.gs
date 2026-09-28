@@ -12,7 +12,7 @@
  *   ROOT_FOLDER_ID, USERS_FOLDER_ID, DB_SPREADSHEET_ID, MAX_UPLOAD_BYTES
  */
 
-const BUILD = '2026-09-28-drive-v2-otp';
+const BUILD = '2026-09-28-drive-v3-otp-textsafe';
 const DEFAULTS = Object.freeze({
   ROOT_FOLDER_ID: '1zwnXP1BQJudpeQSGpUPOob5GpEUL3mH5',
   USERS_FOLDER_ID: '193a7fFJaV9QfzK5QZj9jQ95U1OQ_-oVk',
@@ -482,9 +482,20 @@ function rows_(name) {
 
 function findBy_(name, field, value) { return rows_(name).find(function(row) { return String(row[field]) === String(value); }) || null; }
 
+// Values are written as plain text (number format '@') so identifiers with
+// leading zeros — phone numbers like 0771234567, all-digit usernames — are not
+// silently coerced to numbers by Sheets. Numeric fields are re-parsed with
+// Number(...) on read, so text storage is safe.
+function writeRow_(sheet, rowNumber, headers, record) {
+  const row = headers.map(function(header) { return record[header] === undefined ? '' : String(record[header]); });
+  const range = sheet.getRange(rowNumber, 1, 1, headers.length);
+  range.setNumberFormat('@');
+  range.setValues([row]);
+}
+
 function appendObject_(sheet, record) {
   const headers = HEADERS[sheet.getName()];
-  sheet.appendRow(headers.map(function(header) { return record[header] === undefined ? '' : record[header]; }));
+  writeRow_(sheet, sheet.getLastRow() + 1, headers, record);
 }
 
 function upsert_(sheet, key, value, record) {
@@ -493,8 +504,7 @@ function upsert_(sheet, key, value, record) {
   const values = sheet.getDataRange().getValues();
   let rowNumber = -1;
   for (let i = 1; i < values.length; i += 1) if (String(values[i][keyIndex]) === String(value)) { rowNumber = i + 1; break; }
-  const row = headers.map(function(header) { return record[header] === undefined ? '' : record[header]; });
-  if (rowNumber < 0) sheet.appendRow(row); else sheet.getRange(rowNumber, 1, 1, headers.length).setValues([row]);
+  writeRow_(sheet, rowNumber < 0 ? sheet.getLastRow() + 1 : rowNumber, headers, record);
 }
 
 function updateBy_(sheet, key, value, changes) {
@@ -505,7 +515,7 @@ function updateBy_(sheet, key, value, changes) {
     if (String(values[i][keyIndex]) !== String(value)) continue;
     Object.keys(changes).forEach(function(field) {
       const index = headers.indexOf(field);
-      if (index >= 0) sheet.getRange(i + 1, index + 1).setValue(changes[field]);
+      if (index >= 0) sheet.getRange(i + 1, index + 1).setNumberFormat('@').setValue(String(changes[field]));
     });
     return;
   }
