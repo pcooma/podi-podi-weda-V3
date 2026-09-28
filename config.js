@@ -6,5 +6,5 @@
 // client-side preview to real email-code accounts, jobs, and bookings.
 window.PODI_PODI_CONFIG = {
   appsScriptUrl: "https://script.google.com/macros/s/AKfycbz-sCzFLWCiTFBClWdshNSaP_J0gvu1qXPIcB4-aH8DXCwnMcR6RSynV-Q3pW-VgFL6/exec",
-  backend: "demo"
+  backend: "live"
 };
