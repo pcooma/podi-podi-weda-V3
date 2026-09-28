@@ -1,10 +1,10 @@
-const CACHE_NAME = "podi-podi-weda-v33";
+const CACHE_NAME = "podi-podi-weda-v34";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=32",
-  "./app.js?v=32",
-  "./backend-client.js?v=3",
+  "./styles.css?v=33",
+  "./app.js?v=33",
+  "./backend-client.js?v=4",
   "./manifest.webmanifest",
   "./icon-192.svg",
   "./icon-512.svg",

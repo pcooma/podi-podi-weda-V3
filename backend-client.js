@@ -114,7 +114,15 @@ window.PodiBackend = {
   listDocuments: () => api("list_documents"),
   submitJob: (job) => api("submit_job", { method: "POST", body: JSON.stringify(job) }),
   searchProviders: (query) => api("search_providers", { method: "POST", body: JSON.stringify(query) }),
-  createBooking: (booking) => api("create_booking", { method: "POST", body: JSON.stringify(booking) })
+  createBooking: (booking) => api("create_booking", { method: "POST", body: JSON.stringify(booking) }),
+  acceptBooking: (bookingId) => api("accept_booking", { method: "POST", body: JSON.stringify({ bookingId }) }),
+  declineBooking: (bookingId) => api("decline_booking", { method: "POST", body: JSON.stringify({ bookingId }) }),
+  completeBooking: (bookingId) => api("complete_booking", { method: "POST", body: JSON.stringify({ bookingId }) }),
+  cancelBooking: (bookingId) => api("cancel_booking", { method: "POST", body: JSON.stringify({ bookingId }) }),
+  getAvailability: (providerUid, from, to) => api("get_availability", { method: "POST", body: JSON.stringify({ providerUid, from, to }) }),
+  getBookings: () => api("get_bookings"),
+  revealContact: (bookingId) => api("reveal_contact", { method: "POST", body: JSON.stringify({ bookingId }) }),
+  blockDates: (block) => api("block_dates", { method: "POST", body: JSON.stringify(block) })
 };
 
 window.dispatchEvent(new CustomEvent("podi-backend-ready"));

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f5c542">
     <title>පොඩි පොඩි වැඩ | සේවා ලබාගන්න</title>
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=32">
+    <link rel="stylesheet" href="styles.css?v=33">
   </head>
   <body>
     <div class="app-shell">
@@ -36,6 +36,7 @@
           </div>
           <div class="top-actions">
             <button class="primary-action" id="installAppButton" type="button" hidden>📲 App එක ලබාගන්න</button>
+            <button class="ghost-action" id="bookingsToggle" type="button" hidden>වෙන් කිරීම්</button>
             <button class="ghost-action" id="accountToggle" type="button">ගිණුම</button>
           </div>
         </header>
@@ -434,9 +435,53 @@
       </div>
     </div>
 
+    <div class="map-modal" id="bookingModal" hidden role="dialog" aria-modal="true" aria-label="සේවාව වෙන් කරන්න">
+      <div class="map-modal-card">
+        <div class="map-modal-head">
+          <strong id="bookingProviderName">සේවාව වෙන් කරන්න</strong>
+          <button type="button" class="icon-btn" id="bookingClose" aria-label="වසන්න">✕</button>
+        </div>
+        <div class="booking-body">
+          <label><span>දිනය</span><input type="date" id="bookingDate"></label>
+          <label id="bookingEndDateField" hidden><span>අවසන් දිනය</span><input type="date" id="bookingEndDate"></label>
+          <fieldset class="chip-field">
+            <legend>වේලාව</legend>
+            <div class="chip-options">
+              <label><input type="checkbox" name="bookingSlot" value="morning" checked> උදේ</label>
+              <label><input type="checkbox" name="bookingSlot" value="lunch"> දවල්</label>
+              <label><input type="checkbox" name="bookingSlot" value="evening"> සවස</label>
+              <label><input type="checkbox" name="bookingSlot" value="night"> රාත්‍රී</label>
+            </div>
+          </fieldset>
+          <p class="location-status muted" id="bookingAvailability"></p>
+          <label><span>ගෙවීම් ක්‍රමය</span>
+            <select id="bookingPayment">
+              <option value="cash_on_completion">වැඩ අවසන් වූ පසු මුදලින්</option>
+              <option value="deposit_plus_cash">කොටසක් දැන්, ඉතිරිය මුදලින්</option>
+              <option value="online_prepay">සම්පූර්ණයෙන්ම දැන්</option>
+            </select>
+          </label>
+          <p class="form-note" id="bookingPaymentNote"></p>
+        </div>
+        <div class="map-modal-actions">
+          <button type="button" class="primary-action" id="bookingConfirm">වෙන් කිරීමට ඉල්ලන්න</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="map-modal" id="bookingsModal" hidden role="dialog" aria-modal="true" aria-label="මගේ වෙන් කිරීම්">
+      <div class="map-modal-card">
+        <div class="map-modal-head">
+          <strong>මගේ වෙන් කිරීම්</strong>
+          <button type="button" class="icon-btn" id="bookingsClose" aria-label="වසන්න">✕</button>
+        </div>
+        <div class="booking-body" id="bookingsList"><p class="muted">පූරණය වෙමින්...</p></div>
+      </div>
+    </div>
+
     <script>window.PODI_PODI_CONFIG = window.PODI_PODI_CONFIG || null;</script>
     <script src="config.js"></script>
-    <script src="app.js?v=32"></script>
-    <script type="module" src="backend-client.js?v=3"></script>
+    <script src="app.js?v=33"></script>
+    <script type="module" src="backend-client.js?v=4"></script>
   </body>
 </html>

@@ -12,7 +12,7 @@
  *   ROOT_FOLDER_ID, USERS_FOLDER_ID, DB_SPREADSHEET_ID, MAX_UPLOAD_BYTES
  */
 
-const BUILD = '2026-09-28-drive-v4-geo-engagement';
+const BUILD = '2026-09-28-drive-v5-bookings';
 const DEFAULTS = Object.freeze({
   ROOT_FOLDER_ID: '1zwnXP1BQJudpeQSGpUPOob5GpEUL3mH5',
   USERS_FOLDER_ID: '193a7fFJaV9QfzK5QZj9jQ95U1OQ_-oVk',
@@ -32,7 +32,7 @@ const HEADERS = Object.freeze({
   DB_Users: ['user_uid','firebase_uid','email','username','display_name','roles_json','status','district','category','skills_json','phone','experience_years','rate_lkr','profile_folder_id','profile_json_file_id','created_at','updated_at','lat','lng','service_radius_km','engagement_types_json','days_per_week'],
   DB_Documents: ['document_id','user_uid','document_type','original_filename','mime_type','size_bytes','drive_file_id','status','created_at'],
   DB_Jobs: ['job_id','client_uid','category','description','district','urgency','budget_lkr','requested_date','job_size','workers_needed','materials_by','access_slots_json','status','created_at','updated_at','lat','lng','engagement_type','estimated_hours','duration_days','days_per_week'],
-  DB_Bookings: ['booking_id','job_id','client_uid','provider_uid','status','agreed_amount_lkr','created_at','updated_at'],
+  DB_Bookings: ['booking_id','job_id','client_uid','provider_uid','status','agreed_amount_lkr','created_at','updated_at','start_date','end_date','slots_json','payment_method','payment_status'],
   DB_Audit: ['audit_id','actor_uid','action','target_type','target_id','metadata_json','created_at']
 });
 
@@ -47,6 +47,44 @@ const USER_SUBFOLDERS = Object.freeze([
   '07_COMPLIANCE_INCIDENTS',
   '99_AUDIT_EXPORTS'
 ]);
+
+const BOOKING_SLOTS = ['morning', 'lunch', 'evening', 'night'];
+const OCCUPYING_STATUSES = ['confirmed', 'in_progress', 'blocked'];
+const PAYMENT_METHODS = ['cash_on_completion', 'deposit_plus_cash', 'online_prepay'];
+
+function dateList_(start, end) {
+  const s = new Date(String(start) + 'T00:00:00');
+  const e = new Date(String(end || start) + 'T00:00:00');
+  if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) throw new Error('Invalid date range.');
+  const days = [];
+  let cur = s;
+  for (let i = 0; i < 366 && cur <= e; i += 1) {
+    days.push(Utilities.formatDate(cur, Session.getScriptTimeZone(), 'yyyy-MM-dd'));
+    cur = new Date(cur.getTime() + 86400000);
+  }
+  return days;
+}
+
+function normSlots_(slots) {
+  const arr = (Array.isArray(slots) ? slots : []).filter(function(s) { return BOOKING_SLOTS.indexOf(s) >= 0; });
+  return arr.length ? arr : BOOKING_SLOTS.slice();
+}
+
+// True if the provider already has an occupying booking on any of these
+// date+slot cells (optionally excluding one booking id).
+function bookingOverlaps_(providerUid, dates, slots, excludeId) {
+  const dateSet = {}; dates.forEach(function(d) { dateSet[d] = true; });
+  const slotSet = {}; slots.forEach(function(s) { slotSet[s] = true; });
+  return rows_(TABS.BOOKINGS).some(function(row) {
+    if (row.provider_uid !== providerUid) return false;
+    if (excludeId && row.booking_id === excludeId) return false;
+    if (OCCUPYING_STATUSES.indexOf(row.status) < 0) return false;
+    const rowSlots = jsonArray_(row.slots_json);
+    const effSlots = rowSlots.length ? rowSlots : BOOKING_SLOTS;
+    return dateList_(row.start_date, row.end_date).some(function(d) { return dateSet[d]; })
+      && effSlots.some(function(s) { return slotSet[s]; });
+  });
+}
 
 function doGet(e) {
   const action = String((e && e.parameter && e.parameter.action) || 'health');
@@ -87,6 +125,14 @@ function doPost(e) {
       case 'submit_job': result = submitJob_(identity, payload); break;
       case 'search_providers': result = searchProviders_(identity, payload); break;
       case 'create_booking': result = createBooking_(identity, payload); break;
+      case 'accept_booking': result = setBookingDecision_(identity, payload, 'confirmed'); break;
+      case 'decline_booking': result = setBookingDecision_(identity, payload, 'declined'); break;
+      case 'cancel_booking': result = cancelBooking_(identity, payload); break;
+      case 'complete_booking': result = setBookingDecision_(identity, payload, 'completed'); break;
+      case 'get_availability': result = getAvailability_(identity, payload); break;
+      case 'get_bookings': result = getBookings_(identity); break;
+      case 'reveal_contact': result = revealContact_(identity, payload); break;
+      case 'block_dates': result = blockDates_(identity, payload); break;
       default: throw new Error('Unknown action.');
     }
     return json_({ok: true, data: result});
@@ -302,16 +348,141 @@ function createBooking_(identity, input) {
   if (!job || job.client_uid !== identity.localId) throw new Error('Job not found.');
   const provider = findBy_(TABS.USERS, 'user_uid', clean_(input.providerUid, 80));
   if (!provider || provider.status !== 'approved') throw new Error('Provider is not available.');
+  const startDate = clean_(input.startDate, 20) || String(job.requested_date || '').slice(0, 10);
+  if (!startDate) throw new Error('Please choose a date.');
+  const endDate = clean_(input.endDate, 20) || startDate;
+  const slots = normSlots_(input.slots);
+  const dates = dateList_(startDate, endDate);
+  const paymentMethod = PAYMENT_METHODS.indexOf(clean_(input.paymentMethod, 30)) >= 0 ? clean_(input.paymentMethod, 30) : 'cash_on_completion';
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    if (bookingOverlaps_(provider.user_uid, dates, slots, null)) throw new Error('That time is already booked. Please choose another date or time.');
+    const now = new Date().toISOString();
+    const record = {
+      booking_id: Utilities.getUuid(), job_id: job.job_id, client_uid: identity.localId,
+      provider_uid: provider.user_uid, status: 'requested',
+      agreed_amount_lkr: number_(input.agreedAmountLkr, 0, 100000000), created_at: now, updated_at: now,
+      start_date: startDate, end_date: endDate, slots_json: JSON.stringify(slots),
+      payment_method: paymentMethod, payment_status: paymentMethod === 'cash_on_completion' ? 'on_completion' : 'pending_gateway'
+    };
+    appendObject_(sheet_(TABS.BOOKINGS), record);
+    updateBy_(sheet_(TABS.JOBS), 'job_id', job.job_id, {status: 'booking_requested', updated_at: now});
+    audit_(identity.localId, 'booking.create', 'booking', record.booking_id, {providerUid: provider.user_uid, startDate: startDate});
+    return {id: record.booking_id, status: record.status, paymentMethod: paymentMethod};
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Provider accepts / declines / completes a booking they were requested for.
+function setBookingDecision_(identity, input, status) {
+  const booking = findBy_(TABS.BOOKINGS, 'booking_id', clean_(input.bookingId, 80));
+  if (!booking) throw new Error('Booking not found.');
+  const me = findBy_(TABS.USERS, 'firebase_uid', identity.localId);
+  if (!me || booking.provider_uid !== me.user_uid) throw new Error('Only the assigned provider can update this booking.');
+  const now = new Date().toISOString();
+  if (status === 'confirmed') {
+    const lock = LockService.getScriptLock();
+    lock.waitLock(20000);
+    try {
+      const slots = jsonArray_(booking.slots_json);
+      if (bookingOverlaps_(booking.provider_uid, dateList_(booking.start_date, booking.end_date), slots.length ? slots : BOOKING_SLOTS, booking.booking_id)) {
+        throw new Error('That time was just booked by someone else.');
+      }
+      updateBy_(sheet_(TABS.BOOKINGS), 'booking_id', booking.booking_id, {status: 'confirmed', updated_at: now});
+    } finally {
+      lock.releaseLock();
+    }
+  } else {
+    updateBy_(sheet_(TABS.BOOKINGS), 'booking_id', booking.booking_id, {status: status, updated_at: now});
+  }
+  audit_(me.user_uid, 'booking.' + status, 'booking', booking.booking_id, {});
+  return {id: booking.booking_id, status: status};
+}
+
+function cancelBooking_(identity, input) {
+  const booking = findBy_(TABS.BOOKINGS, 'booking_id', clean_(input.bookingId, 80));
+  if (!booking) throw new Error('Booking not found.');
+  const me = findBy_(TABS.USERS, 'firebase_uid', identity.localId);
+  const isClient = booking.client_uid === identity.localId;
+  const isProvider = me && booking.provider_uid === me.user_uid;
+  if (!isClient && !isProvider) throw new Error('Not your booking.');
+  updateBy_(sheet_(TABS.BOOKINGS), 'booking_id', booking.booking_id, {status: 'cancelled', updated_at: new Date().toISOString()});
+  audit_(identity.localId, 'booking.cancel', 'booking', booking.booking_id, {});
+  return {id: booking.booking_id, status: 'cancelled'};
+}
+
+// Occupied (date, slot) cells for a provider over a date window.
+function getAvailability_(identity, input) {
+  requireVerifiedEmail_(identity);
+  const providerUid = clean_(input.providerUid, 80);
+  const from = clean_(input.from, 20);
+  const to = clean_(input.to, 20) || from;
+  if (!providerUid || !from) throw new Error('providerUid and from date are required.');
+  const wanted = {}; dateList_(from, to).forEach(function(d) { wanted[d] = true; });
+  const occupied = [];
+  rows_(TABS.BOOKINGS).forEach(function(row) {
+    if (row.provider_uid !== providerUid || OCCUPYING_STATUSES.indexOf(row.status) < 0) return;
+    const slots = jsonArray_(row.slots_json);
+    const effSlots = slots.length ? slots : BOOKING_SLOTS;
+    dateList_(row.start_date, row.end_date).forEach(function(d) {
+      if (wanted[d]) effSlots.forEach(function(s) { occupied.push({date: d, slot: s}); });
+    });
+  });
+  return {providerUid: providerUid, occupied: occupied};
+}
+
+function getBookings_(identity) {
+  const me = findBy_(TABS.USERS, 'firebase_uid', identity.localId);
+  const myUid = me ? me.user_uid : null;
+  return rows_(TABS.BOOKINGS).filter(function(row) {
+    return row.status !== 'blocked' && (row.client_uid === identity.localId || (myUid && row.provider_uid === myUid));
+  }).map(function(row) {
+    const provider = findBy_(TABS.USERS, 'user_uid', row.provider_uid);
+    return {
+      id: row.booking_id, jobId: row.job_id, status: row.status,
+      role: row.client_uid === identity.localId ? 'client' : 'provider',
+      startDate: row.start_date, endDate: row.end_date, slots: jsonArray_(row.slots_json),
+      paymentMethod: row.payment_method, paymentStatus: row.payment_status,
+      amount: Number(row.agreed_amount_lkr || 0),
+      providerName: provider ? provider.display_name : '', providerUid: row.provider_uid,
+      createdAt: row.created_at
+    };
+  }).sort(function(a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
+}
+
+// Contact details open only on a confirmed booking, to the client or provider.
+function revealContact_(identity, input) {
+  const booking = findBy_(TABS.BOOKINGS, 'booking_id', clean_(input.bookingId, 80));
+  if (!booking) throw new Error('Booking not found.');
+  const me = findBy_(TABS.USERS, 'firebase_uid', identity.localId);
+  const isClient = booking.client_uid === identity.localId;
+  const isProvider = me && booking.provider_uid === me.user_uid;
+  if (!isClient && !isProvider) throw new Error('Not your booking.');
+  if (['confirmed', 'in_progress', 'completed'].indexOf(booking.status) < 0) throw new Error('Contact opens after the provider confirms the booking.');
+  const provider = findBy_(TABS.USERS, 'user_uid', booking.provider_uid);
+  audit_(identity.localId, 'contact.reveal', 'booking', booking.booking_id, {providerUid: booking.provider_uid});
+  return {providerName: provider ? provider.display_name : '', providerPhone: provider ? provider.phone : ''};
+}
+
+// Provider marks their own dates unavailable (stored as a 'blocked' booking).
+function blockDates_(identity, input) {
+  requireVerifiedEmail_(identity);
+  const me = requireUser_(identity.localId);
+  const startDate = clean_(input.startDate, 20);
+  if (!startDate) throw new Error('Please choose a date.');
+  const endDate = clean_(input.endDate, 20) || startDate;
+  const slots = normSlots_(input.slots);
   const now = new Date().toISOString();
   const record = {
-    booking_id: Utilities.getUuid(), job_id: job.job_id, client_uid: identity.localId,
-    provider_uid: provider.user_uid, status: 'requested',
-    agreed_amount_lkr: number_(input.agreedAmountLkr, 0, 100000000), created_at: now, updated_at: now
+    booking_id: Utilities.getUuid(), job_id: 'self-block', client_uid: identity.localId,
+    provider_uid: me.user_uid, status: 'blocked', agreed_amount_lkr: 0, created_at: now, updated_at: now,
+    start_date: startDate, end_date: endDate, slots_json: JSON.stringify(slots), payment_method: '', payment_status: ''
   };
   appendObject_(sheet_(TABS.BOOKINGS), record);
-  updateBy_(sheet_(TABS.JOBS), 'job_id', job.job_id, {status: 'booking_requested', updated_at: now});
-  audit_(identity.localId, 'booking.create', 'booking', record.booking_id, {jobId: job.job_id, providerUid: provider.user_uid});
-  return {id: record.booking_id, status: record.status};
+  audit_(me.user_uid, 'availability.block', 'booking', record.booking_id, {startDate: startDate});
+  return {id: record.booking_id, status: 'blocked'};
 }
 
 function setProviderStatus_(input) {
