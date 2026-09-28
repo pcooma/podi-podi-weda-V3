@@ -21,6 +21,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -42,20 +46,22 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 1fr;
   min-height: 100vh;
 }
 
 .rail {
   position: sticky;
   top: 0;
-  height: 100vh;
-  padding: 22px;
+  z-index: 30;
+  height: auto;
+  padding: 10px 18px;
   background: #17241f;
   color: #f7fbf8;
   display: flex;
-  flex-direction: column;
-  gap: 22px;
+  flex-direction: row;
+  align-items: center;
+  gap: 18px;
 }
 
 .brand {
@@ -88,7 +94,9 @@ button {
 
 .role-tabs {
   display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
   gap: 8px;
+  margin-left: auto;
 }
 
 .role-tab,
@@ -116,6 +124,7 @@ button {
 }
 
 .system-card {
+  display: none;
   margin-top: auto;
   padding: 14px;
   border-radius: var(--radius);
@@ -129,7 +138,10 @@ button {
 }
 
 main {
-  padding: 24px;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px;
   min-width: 0;
 }
 
@@ -138,7 +150,7 @@ main {
   justify-content: space-between;
   align-items: start;
   gap: 20px;
-  margin-bottom: 22px;
+  margin-bottom: 14px;
 }
 
 h1,
@@ -275,13 +287,13 @@ textarea:disabled {
 
 .landing-band {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.65fr);
   gap: 16px;
   align-items: stretch;
   margin-bottom: 18px;
   border: 1px solid #e5c669;
   border-radius: var(--radius);
-  padding: 18px;
+  padding: 16px;
   background:
     linear-gradient(135deg, rgba(245, 197, 66, 0.95), rgba(255, 248, 223, 0.96)),
     #f5c542;
@@ -298,18 +310,18 @@ textarea:disabled {
 .helmet-symbol {
   display: grid;
   place-items: center;
-  width: 86px;
-  height: 86px;
+  width: 64px;
+  height: 64px;
   border-radius: 18px;
   background: #17241f;
-  font-size: 3.8rem;
+  font-size: 2.7rem;
   line-height: 1;
 }
 
 .landing-copy h2 {
   margin-bottom: 8px;
   max-width: 780px;
-  font-size: clamp(1.35rem, 2.5vw, 2.2rem);
+  font-size: clamp(1.25rem, 2vw, 1.75rem);
   line-height: 1.2;
 }
 
@@ -396,7 +408,7 @@ textarea:disabled {
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 1.2fr) minmax(280px, 0.8fr);
+  grid-template-columns: minmax(340px, 1.1fr) minmax(260px, 0.7fr);
   gap: 16px;
   align-items: start;
 }
@@ -459,6 +471,36 @@ textarea:disabled {
 .form-stack {
   display: grid;
   gap: 13px;
+}
+
+.advanced-options,
+.inline-details {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fbfdfb;
+}
+
+.advanced-options > summary,
+.inline-details > summary,
+.secondary-panel > summary {
+  cursor: pointer;
+  color: var(--brand);
+  font-weight: 800;
+  list-style-position: inside;
+}
+
+.advanced-options > summary { padding: 12px; }
+.advanced-options > summary small { color: var(--muted); font-weight: 600; }
+.advanced-options[open] { padding-bottom: 12px; }
+.advanced-options[open] > :not(summary) { margin: 12px 12px 0; }
+.inline-details { margin-top: 10px; padding: 9px 10px; }
+.inline-details p:last-child { margin-bottom: 0; }
+.secondary-panel { margin-top: 16px; }
+.secondary-panel > .panel-head { margin-top: 16px; }
+
+.primary-large {
+  min-height: 52px;
+  font-size: 1rem;
 }
 
 .worker-help {
@@ -777,7 +819,7 @@ textarea {
 
 .provider-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
   gap: 14px;
 }
 
@@ -792,7 +834,7 @@ textarea {
   overflow: hidden;
   background: #fbfdfb;
   display: grid;
-  grid-template-rows: 120px 1fr;
+  grid-template-rows: 76px 1fr;
 }
 
 .portfolio-art {
@@ -809,8 +851,8 @@ textarea {
   content: "";
   position: absolute;
   inset: auto 12px 12px auto;
-  width: 58px;
-  height: 36px;
+  width: 42px;
+  height: 25px;
   border: 2px solid rgba(255, 255, 255, 0.85);
   border-radius: 4px;
   box-shadow: -22px -18px 0 rgba(255, 255, 255, 0.22);
@@ -896,7 +938,7 @@ textarea {
 
 .mini-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1.35fr .65fr .8fr;
   gap: 8px;
   margin: 12px 0;
 }
@@ -905,8 +947,10 @@ textarea {
   background: var(--wash);
   border-radius: var(--radius);
   padding: 8px;
-  min-height: 54px;
+  min-height: 58px;
 }
+
+.price-stat strong { color: var(--brand); font-size: 1.05rem; }
 
 .mini-stat small {
   display: block;
@@ -1058,7 +1102,7 @@ textarea {
   }
 
   .role-tabs {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .role-tab {
@@ -1115,7 +1159,7 @@ textarea {
     right: 10px;
     bottom: 10px;
     z-index: 30;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
     padding: 7px;
     border: 1px solid rgba(23, 36, 31, 0.16);

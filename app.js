@@ -1,4 +1,4 @@
-const STORAGE_KEY = "podi-podi-weda-demo-v3";
+const STORAGE_KEY = "podi-podi-weda-demo-v4";
 
 const categories = [
   {
@@ -1942,7 +1942,7 @@ function renderClientRequirementControls() {
       ${skill}
     </label>
   `).join("");
-  descriptionLabel.textContent = "අමතර විස්තර (අත්‍යවශ්‍ය නැහැ)";
+  descriptionLabel.textContent = "මොන වැඩේද? (කෙටියෙන්)";
 }
 
 function selectedProviderCategory() {
@@ -1992,7 +1992,7 @@ function renderLatestJob() {
 function renderAiPanel(job) {
   const panel = $("#aiPanel");
   if (!job) {
-    panel.innerHTML = "<p>ලැයිස්තුවෙන් සේවා වර්ගය සහ විශේෂ වැඩ තෝරන විට deterministic matching කරයි. ලැයිස්තුවේ නැති / පැහැදිලි නැති ඉල්ලීම් පමණක් Claude/Admin fallback වෙත යවයි.</p>";
+    panel.innerHTML = "<p>ඉහත තොරතුරු පුරවා <strong>සුදුසු අය බලන්න</strong> ඔබන්න.</p>";
     return;
   }
   const c = job.classification;
@@ -2001,17 +2001,13 @@ function renderAiPanel(job) {
       <h3>${c.category.si}</h3>
       <p>${c.summarySi}</p>
         <div class="ai-meta">
-          <span class="tag">${translateJobType(c.jobType)}</span>
-          <span class="tag">Client offer: රු. ${Number(job.budget || 0).toLocaleString()}</span>
+          <span class="tag">රු. ${Number(job.budget || 0).toLocaleString()} දක්වා</span>
           <span class="tag">${translateJobSize(c.jobSize)}</span>
           <span class="tag">අය ${c.workersNeeded || 1}ක්</span>
-        <span class="tag">${translateMaterialMode(c.materialsBy)}</span>
-        <span class="tag">${formatSlots(c.accessSlots)}</span>
-        <span class="tag">${translateSkillLevel(c.skillLevel)}</span>
-        <span class="tag">${translateTier(c.minTier)}</span>
+          <span class="tag">${formatSlots(c.accessSlots)}</span>
       </div>
       ${c.accessInfo ? `<p class="muted"><strong>Access:</strong> ${escapeHTML(c.accessInfo)}</p>` : ""}
-      <ol class="question-list">${c.questions.map((q) => `<li>${q}</li>`).join("")}</ol>
+      <details class="inline-details"><summary>සේවා සපයන්නාගෙන් අහන්න ඕන දේ</summary><ol class="question-list">${c.questions.map((q) => `<li>${q}</li>`).join("")}</ol></details>
     </div>
   `;
 }
@@ -2055,42 +2051,23 @@ function renderShortlist(job) {
         <div class="provider-topline">
           <div>
             <h3>${escapeHTML(provider.name)}</h3>
-            <p class="muted">${escapeHTML(provider.rationale)}</p>
+            <p class="muted">${escapeHTML(categoryBySlug(provider.category).si)}</p>
           </div>
-          <span class="score">${provider.score}</span>
+          <span class="score">★ ${provider.rating}</span>
         </div>
         <div class="ai-meta">
           <span class="badge">${translateTier(provider.tier)}</span>
           <span class="badge">${translateAvailability(provider.availability)}</span>
-          <span class="badge">${provider.quoteOnly ? "Quote only" : "Rate card"}</span>
         </div>
-        <div class="match-factors" aria-label="Match factors">
-          <span>Skills ${provider.scoreParts.skills}%</span>
-          <span>Area ${provider.scoreParts.distance}%</span>
-          <span>Trust ${provider.scoreParts.trust}%</span>
-          <span>Offer fit ${provider.scoreParts.budget}%</span>
-          <span>Materials ${provider.scoreParts.materials}%</span>
-        </div>
-        ${provider.marketOffer && !provider.quoteOnly ? `
-        <div class="offer-strip">
-          <div><small>Client value</small><strong>රු. ${provider.marketOffer.clientOffer.toLocaleString()}</strong></div>
-          <div><small>Provider ${provider.marketOffer.slotLabel}</small><strong>රු. ${provider.marketOffer.slotBaseRate.toLocaleString()}</strong></div>
-          <div><small>Distance</small><strong>රු. ${provider.marketOffer.distanceCharge.toLocaleString()}</strong></div>
-          <div><small>Total offer</small><strong>රු. ${provider.marketOffer.total.toLocaleString()}</strong></div>
-          <div class="${provider.marketOffer.gap <= 0 ? "offer-good" : "offer-gap"}"><small>${provider.marketOffer.gap <= 0 ? "Client saves" : "Gap"}</small><strong>රු. ${Math.abs(provider.marketOffer.gap).toLocaleString()}</strong></div>
-        </div>` : ""}
         <div class="mini-grid">
-          <div class="mini-stat"><small>ගාස්තුව</small><strong>${provider.quoteOnly ? "Quote" : `රු. ${Number(provider.effectiveRate ?? provider.rate ?? 0).toLocaleString()}`}</strong></div>
-          <div class="mini-stat"><small>ඇගයීම</small><strong>${provider.rating} / 5</strong></div>
+          <div class="mini-stat price-stat"><small>අපේක්ෂිත මුළු ගාස්තුව</small><strong>${provider.quoteOnly ? "මිල විමසන්න" : `රු. ${Number(provider.effectiveRate ?? provider.rate ?? 0).toLocaleString()}`}</strong></div>
           <div class="mini-stat"><small>දුර</small><strong>${provider.marketOffer ? provider.marketOffer.distanceKm : provider.distanceKm} km</strong></div>
-          <div class="mini-stat"><small>කණ්ඩායම</small><strong>අය ${provider.teamSize || 1}</strong></div>
-          <div class="mini-stat"><small>වේලාවන්</small><strong>${formatSlots(providerTimeSlots(provider))}</strong></div>
-          <div class="mini-stat"><small>සපයන දේ</small><strong>${formatSupply(providerSupplyCapabilities(provider))}</strong></div>
+          <div class="mini-stat"><small>වේලාව</small><strong>${provider.selectedSlot ? timeSlotLabels[provider.selectedSlot] : formatSlots(providerTimeSlots(provider))}</strong></div>
         </div>
-        <p class="muted">${escapeHTML(provider.portfolio)}</p>
+        <details class="inline-details"><summary>ගැළපෙන්නේ ඇයි?</summary><p class="muted">${escapeHTML(provider.rationale)}</p><p class="muted">${escapeHTML(provider.portfolio)}</p></details>
         <div class="card-actions">
-          <button class="primary-action" type="button" data-unlock="${provider.id}" data-job="${job.id}">සම්බන්ධතා ගන්න</button>
-          <button class="ghost-action" type="button" data-book="${provider.id}" data-job="${job.id}">වේලාව වෙන් කරන්න</button>
+          <button class="primary-action" type="button" data-unlock="${provider.id}" data-job="${job.id}">සම්බන්ධ වන්න</button>
+          <button class="ghost-action" type="button" data-book="${provider.id}" data-job="${job.id}">වෙන් කරගන්න</button>
         </div>
       </div>
     </article>
@@ -2711,6 +2688,7 @@ function initializeBackendStatus() {
     $("#loginButton").disabled = true;
     $("#registerButton").disabled = true;
     $("#adminTab").textContent = "Demo Admin";
+    $("#accountToggle").hidden = true;
     return;
   }
   status.textContent = "Secure backend";
@@ -2725,6 +2703,7 @@ function initializeBackendStatus() {
   $("#loginButton").disabled = false;
   $("#registerButton").disabled = false;
   $("#adminTab").hidden = true;
+  $("#accountToggle").hidden = false;
   backend.onAuthChange(async (user) => {
     accountStatus.textContent = user ? `Login: ${user.email || user.uid}` : "Login කර ඔබේ profile එක secure ලෙස save කරන්න.";
     $("#loginButton").hidden = Boolean(user);

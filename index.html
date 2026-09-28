@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f5c542">
     <title>පොඩි පොඩි වැඩ | සේවා ලබාගන්න</title>
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=24">
+    <link rel="stylesheet" href="styles.css?v=27">
   </head>
   <body>
     <div class="app-shell">
@@ -21,19 +21,19 @@
         <nav class="role-tabs" aria-label="Role views">
           <button class="role-tab active" data-view="client" type="button"><span>🔎</span> වැඩක් කරගන්න</button>
           <button class="role-tab" data-view="provider" type="button"><span>🧰</span> වැඩක් කරන්න</button>
-          <button class="role-tab" data-view="admin" type="button" id="adminTab">Demo Admin</button>
+          <button class="role-tab" data-view="admin" type="button" id="adminTab" hidden>Demo Admin</button>
         </nav>
         <div class="system-card">
           <span class="eyebrow">ඉතා සරලයි</span>
-          <p>ඔබේ දුරකථන අංකය, සේවාව, ප්‍රදේශය සහ දවසක ගාස්තුව ඇතුළත් කරන්න.</p>
+          <p>අවශ්‍ය සේවාව තෝරන්න. සුදුසු අය සරලව සොයාගන්න.</p>
         </div>
       </aside>
 
       <main>
         <header class="topbar">
           <div>
-            <p class="eyebrow">Sri Lanka workforce marketplace</p>
-            <h1>වැඩට ගැළපෙන මිනිස්සු. මිනිස්සුන්ට ගැළපෙන වැඩ.</h1>
+            <p class="eyebrow">ශ්‍රී ලංකාවේ සේවා සම්බන්ධකය</p>
+            <h1>ඔබට අවශ්‍ය වැඩේ පහසුවෙන් කරගන්න.</h1>
           </div>
           <div class="top-actions">
             <span class="backend-status demo" id="backendStatus">Demo mode</span>
@@ -76,9 +76,9 @@
           <div class="landing-copy">
             <span class="helmet-symbol" aria-hidden="true">👷</span>
             <div>
-              <p class="eyebrow">පොඩි වැඩේ ඉඳන් professional සේවාව දක්වා</p>
-              <h2>ඔබට අවශ්‍ය සේවාව තෝරන්න. සුදුසුම අය එක්ක අපි ඔබව සම්බන්ධ කරන්නම්.</h2>
-              <p>බාස්වරු, මේසන්, පිරිසිදු කරන්නන්, වඩු, විදුලි කාර්මික, QS, ඉංජිනේරු, ගුරුවරු සහ තවත් බොහෝ සේවාවන්.</p>
+              <p class="eyebrow">පොඩි වැඩේ ඉඳන් වෘත්තීය සේවාව දක්වා</p>
+              <h2>ඔබට අද කරන්න ඕන මොකක්ද?</h2>
+              <p>සේවාව සහ ප්‍රදේශය තෝරන්න. ගැළපෙන අය සහ මිල එක තැනක බලන්න.</p>
             </div>
           </div>
           <div class="entry-cards">
@@ -93,20 +93,6 @@
               <small>ඔබේ වෘත්තිය, පළපුරුද්ද සහ ගාස්තු ඇතුළත් කර ලියාපදිංචි වන්න</small>
             </button>
           </div>
-          <div class="role-symbols" aria-label="Service examples">
-            <span title="Mason">🧱 මේසන් බාස්</span>
-            <span title="Plumber">🚰 ජලනල කාර්මික</span>
-            <span title="Cleaner">🧹 Cleaner</span>
-            <span title="Electrician">⚡ විදුලි කාර්මික</span>
-            <span title="Professional">📐 QS / Engineer</span>
-            <span title="Teacher">📚 Teacher</span>
-            <span title="Printing">🖨️ Printing</span>
-            <span title="Graphic Design">🎨 Graphic Design</span>
-            <span title="Typing">⌨️ Type setting</span>
-            <span title="Digital">💻 Web / Marketing</span>
-            <span title="Events">🎪 Events</span>
-            <span title="Repairs">🛠️ Computer / Mobile repair</span>
-          </div>
         </section>
 
         <section id="client-view" class="view active" aria-label="Client workspace">
@@ -114,8 +100,8 @@
             <section class="panel job-panel">
               <div class="panel-head">
                 <div>
-                  <p class="eyebrow">ඔබේ අවශ්‍යතාවය</p>
-                  <h2>ඔබට අවශ්‍ය සේවාව තෝරන්න</h2>
+                  <p class="eyebrow">පියවර 1</p>
+                  <h2>වැඩේ ගැන කෙටියෙන් කියන්න</h2>
                 </div>
                 <span class="status-pill">නොමිලේ</span>
               </div>
@@ -125,13 +111,8 @@
                     <span>ඔබට අවශ්‍ය සේවා වර්ගය</span>
                     <select id="jobCategory"></select>
                   </label>
-                <div id="jobGuidance" class="role-guidance"></div>
-                <fieldset class="chip-field" id="jobSkillField">
-                  <legend>අදාළ විශේෂිත සේවාවන් තෝරන්න</legend>
-                  <div id="jobSkillChips" class="chip-options"></div>
-                </fieldset>
                 <label>
-                  <span id="jobDescriptionLabel">වැඩිදුර විස්තර</span>
+                  <span id="jobDescriptionLabel">මොන වැඩේද?</span>
                   <textarea id="jobDescription" rows="5">නාන කාමරයේ වතුර බටයක කාන්දුවක් තියෙනවා. අද හෝ හෙට ප්ලම්බර් කෙනෙක් (ජලනල කාර්මිකයෙක්) අවශ්‍යයි.</textarea>
                 </label>
                 <div class="two-col">
@@ -152,32 +133,37 @@
                     </select>
                   </label>
                 </div>
-                <div class="two-col">
-                  <label>
-                    <span>Client දෙන මිල / අපේක්ෂිත වියදම (රු.)</span>
-                    <input id="jobBudget" type="number" min="1000" step="500" value="8000">
-                  </label>
-                  <label>
-                    <span>සේවාව අවශ්‍ය දිනය</span>
-                    <input id="jobDate" type="date">
-                  </label>
-                </div>
-                <div class="two-col">
-                  <label>
-                    <span>වැඩේ ප්‍රමාණය</span>
-                    <select id="jobSize">
-                      <option value="small">පොඩි වැඩක්</option>
-                      <option value="medium">සාමාන්‍ය වැඩක්</option>
-                      <option value="large">ලොකු වැඩක් / Project එකක්</option>
-                      <option value="ongoing">දිගටම තියෙන වැඩක්</option>
-                    </select>
-                  </label>
+                <label>
+                  <span>ඔබට වියදම් කළ හැකි උපරිම මුදල (රු.)</span>
+                  <input id="jobBudget" type="number" min="1000" step="500" value="8000">
+                </label>
+                <details class="advanced-options">
+                  <summary>තවත් විස්තර එකතු කරන්න <small>(අත්‍යවශ්‍ය නැහැ)</small></summary>
+                  <div id="jobGuidance" class="role-guidance"></div>
+                  <fieldset class="chip-field" id="jobSkillField">
+                    <legend>අදාළ විශේෂිත වැඩ</legend>
+                    <div id="jobSkillChips" class="chip-options"></div>
+                  </fieldset>
+                  <div class="two-col">
+                    <label>
+                      <span>සේවාව අවශ්‍ය දිනය</span>
+                      <input id="jobDate" type="date">
+                    </label>
+                    <label>
+                      <span>වැඩේ ප්‍රමාණය</span>
+                      <select id="jobSize">
+                        <option value="small">පොඩි වැඩක්</option>
+                        <option value="medium">සාමාන්‍ය වැඩක්</option>
+                        <option value="large">ලොකු වැඩක් / Project එකක්</option>
+                        <option value="ongoing">දිගටම තියෙන වැඩක්</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="two-col">
                   <label>
                     <span>අවශ්‍ය සේවක ගණන</span>
                     <input id="jobWorkersNeeded" type="number" min="1" max="20" step="1" value="1">
                   </label>
-                </div>
-                <div class="two-col">
                   <label>
                     <span>බඩු / උපකරණ සපයන්නේ කවුද?</span>
                     <select id="jobMaterials">
@@ -188,35 +174,38 @@
                       <option value="unknown">තවම දන්නේ නැහැ / උපදෙස් ඕන</option>
                     </select>
                   </label>
+                  </div>
+                  <div class="two-col">
                   <label>
                     <span>ඇතුල්වීම / accessibility</span>
                     <input id="jobAccessInfo" placeholder="උදා: lunch hour පමණයි, parking නැහැ, security pass ඕන">
                   </label>
-                </div>
-                <fieldset class="chip-field">
-                  <legend>ඔබට වැඩ කරන්න ඉඩ තියෙන වේලාවන්</legend>
-                  <div class="chip-options time-options">
-                    <label><input type="checkbox" name="jobSlot" value="morning" checked> උදේ</label>
-                    <label><input type="checkbox" name="jobSlot" value="lunch"> Lunch hour</label>
-                    <label><input type="checkbox" name="jobSlot" value="evening"> සවස</label>
-                    <label><input type="checkbox" name="jobSlot" value="night"> රාත්‍රී</label>
+                    <label>
+                      <span>ඡායාරූප / ලේඛන</span>
+                      <input id="jobPhotos" type="file" multiple accept="image/*,.pdf" disabled title="Uploads will open after the secure jobs backend is deployed">
+                    </label>
                   </div>
-                </fieldset>
-                <label>
-                  <span>ඡායාරූප / ලේඛන</span>
-                  <input id="jobPhotos" type="file" multiple accept="image/*,.pdf" disabled title="Uploads will open after the secure jobs backend is deployed">
-                </label>
-                <button class="primary-action" type="submit">ගැළපෙනම අය සොයන්න</button>
+                  <fieldset class="chip-field">
+                    <legend>වැඩ කරන්න පුළුවන් වේලාවන්</legend>
+                    <div class="chip-options time-options">
+                      <label><input type="checkbox" name="jobSlot" value="morning" checked> උදේ</label>
+                      <label><input type="checkbox" name="jobSlot" value="lunch"> දවල්</label>
+                      <label><input type="checkbox" name="jobSlot" value="evening"> සවස</label>
+                      <label><input type="checkbox" name="jobSlot" value="night"> රාත්‍රී</label>
+                    </div>
+                  </fieldset>
+                </details>
+                <button class="primary-action primary-large" type="submit">සුදුසු අය බලන්න</button>
               </form>
             </section>
 
             <section class="panel">
               <div class="panel-head">
                 <div>
-                  <p class="eyebrow">ඔබේ ඉල්ලීම</p>
-                  <h2>ගැළපෙන ප්‍රතිඵල</h2>
+                  <p class="eyebrow">පියවර 2</p>
+                  <h2>ඔබේ ඉල්ලීම</h2>
                 </div>
-                <span class="status-pill muted">🔒 සුරක්ෂිතයි</span>
+                <span class="status-pill muted">Preview</span>
               </div>
               <div id="aiPanel" class="ai-panel">
                 <p>ඔබේ ඉල්ලීම යොමු කළ පසු, ඊට ගැළපෙන අයගේ විස්තර මෙහි දිස්වනු ඇත.</p>
@@ -227,8 +216,8 @@
           <section class="panel shortlist-panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Top 5 deterministic results</p>
-                <h2>අප නිර්දේශ කරන අය</h2>
+                <p class="eyebrow">පියවර 3</p>
+                <h2>ඔබට ගැළපෙන සේවා සපයන්නන්</h2>
               </div>
               <span id="shortlistCount" class="status-pill">ප්‍රතිඵල 0</span>
             </div>
@@ -237,7 +226,8 @@
             </div>
           </section>
 
-          <section class="panel timeline-panel">
+          <details class="panel timeline-panel secondary-panel">
+            <summary>ඉල්ලීමේ ඉදිරි පියවර බලන්න</summary>
             <div class="panel-head">
               <div>
                 <p class="eyebrow">Current lifecycle</p>
@@ -245,7 +235,7 @@
               </div>
             </div>
             <ol id="jobTimeline" class="timeline"></ol>
-          </section>
+          </details>
         </section>
 
         <section id="provider-view" class="view" aria-label="වැඩ ලබාගන්න ලියාපදිංචිය">
@@ -257,13 +247,6 @@
                   <h2>වැඩක් කරන්න ලියාපදිංචි වන්න</h2>
                 </div>
                 <span class="status-pill">තහවුරු කිරීමෙන් පසු ඇතුළත් කෙරේ</span>
-              </div>
-              <div class="worker-help">
-                <strong>ලියාපදිංචිය සඳහා අවශ්‍ය තොරතුරු</strong>
-                <span>නම සහ දුරකථන අංකය</span>
-                <span>ඔබේ වෘත්තිය</span>
-                <span>වැඩ කරන ප්‍රදේශය</span>
-                <span>අයකරන ගාස්තුව සහ පළපුරුද්ද</span>
               </div>
               <form id="providerForm" class="form-stack">
                 <p class="form-notice warning" id="providerDemoNotice">Provider registration තවම විවෘත කර නැහැ. Google secure backend සම්බන්ධ කළ පසු මෙම form එක භාවිත කළ හැක.</p>
@@ -295,6 +278,8 @@
                     </select>
                   </label>
                 </div>
+                <details class="advanced-options">
+                  <summary>ගාස්තු, පළපුරුද්ද සහ ලේඛන එකතු කරන්න</summary>
                 <div id="roleGuidance" class="role-guidance"></div>
                 <fieldset class="chip-field" id="skillField">
                   <legend>ඔබට කළ හැකි විශේෂිත වැඩ</legend>
@@ -378,8 +363,9 @@
                   </select>
                   <input id="providerDocs" type="file" multiple accept="image/*,.pdf" disabled>
                 </label>
+                </details>
                 <p class="form-note">ඔබේ ලියාපදිංචිය තහවුරු කළ පසු, ඔබට ගැළපෙන වැඩ SMS හෝ WhatsApp මගින් දැනුම් දෙනු ලැබේ.</p>
-                <button class="primary-action" id="providerSubmit" type="submit" disabled>ලියාපදිංචි වන්න</button>
+                <button class="primary-action primary-large" id="providerSubmit" type="submit" disabled>ලියාපදිංචි වන්න</button>
                 <div id="providerStatusMessage" class="success-message" hidden></div>
               </form>
             </section>
@@ -438,7 +424,7 @@
 
     <script>window.PODI_PODI_CONFIG = window.PODI_PODI_CONFIG || null;</script>
     <script src="config.js"></script>
-    <script src="app.js?v=24"></script>
+    <script src="app.js?v=27"></script>
     <script type="module" src="backend-client.js?v=1"></script>
   </body>
 </html>
