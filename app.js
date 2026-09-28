@@ -2329,7 +2329,7 @@ function renderAdmin() {
 }
 
 function unlockContact(_jobId, _providerId) {
-  toast("Contact release එක admin approval සහ payment workflow සමඟ ඉදිරියේදී විවෘත වේ.");
+  toast("පළමු මාස 6 නොමිලේ. Booking තහවුරු කළ පසු පමණක් සම්බන්ධතා විස්තර බෙදාගැනීම ආරක්ෂිතව විවෘත කරමු.");
 }
 
 async function bookProvider(jobId, providerId) {
