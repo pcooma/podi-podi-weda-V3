@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f5c542">
     <title>පොඩි පොඩි වැඩ | සේවා ලබාගන්න</title>
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=21">
+    <link rel="stylesheet" href="styles.css?v=24">
   </head>
   <body>
     <div class="app-shell">
@@ -21,7 +21,7 @@
         <nav class="role-tabs" aria-label="Role views">
           <button class="role-tab active" data-view="client" type="button"><span>🔎</span> වැඩක් කරගන්න</button>
           <button class="role-tab" data-view="provider" type="button"><span>🧰</span> වැඩක් කරන්න</button>
-          <button class="role-tab" data-view="admin" type="button">Admin</button>
+          <button class="role-tab" data-view="admin" type="button" id="adminTab">Demo Admin</button>
         </nav>
         <div class="system-card">
           <span class="eyebrow">ඉතා සරලයි</span>
@@ -44,6 +44,11 @@
           </div>
         </header>
 
+        <section class="launch-notice" id="launchNotice" role="status">
+          <strong>මෙය public preview එකක් — සැබෑ පුද්ගලික තොරතුරු ඇතුළත් නොකරන්න.</strong>
+          <span>Secure accounts, document uploads, payments සහ bookings තවම live කර නැහැ. Client matching test data පමණක් ඔබගේ browser එකේ තාවකාලිකව සුරැකේ.</span>
+        </section>
+
         <section class="account-panel" id="accountPanel" hidden aria-label="Account access">
           <div>
             <p class="eyebrow">ආරක්ෂිත ගිණුම</p>
@@ -53,15 +58,15 @@
           <form id="accountForm" class="account-form">
             <label>
               <span>Email</span>
-              <input id="accountEmail" type="email" autocomplete="email" required>
+              <input id="accountEmail" type="email" autocomplete="email" required disabled>
             </label>
             <label>
               <span>Password</span>
-              <input id="accountPassword" type="password" minlength="8" autocomplete="current-password" required>
+              <input id="accountPassword" type="password" minlength="8" autocomplete="current-password" required disabled>
             </label>
             <div class="row-actions">
-              <button class="primary-action" id="loginButton" type="submit">Login</button>
-              <button class="ghost-action" id="registerButton" type="button">Register</button>
+              <button class="primary-action" id="loginButton" type="submit" disabled>Login</button>
+              <button class="ghost-action" id="registerButton" type="button" disabled>Register</button>
               <button class="ghost-action" id="logoutButton" type="button" hidden>Logout</button>
             </div>
           </form>
@@ -115,6 +120,7 @@
                 <span class="status-pill">නොමිලේ</span>
               </div>
               <form id="jobForm" class="form-stack">
+                <p class="form-notice" id="clientDemoNotice">Preview mode: මෙහි ඇතුළත් කරන විස්තර server එකකට යවන්නේ නැහැ. සැබෑ ලිපිනයන්, දුරකථන අංක හෝ පුද්ගලික ලේඛන දාන්න එපා.</p>
                 <label>
                     <span>ඔබට අවශ්‍ය සේවා වර්ගය</span>
                     <select id="jobCategory"></select>
@@ -198,7 +204,7 @@
                 </fieldset>
                 <label>
                   <span>ඡායාරූප / ලේඛන</span>
-                  <input id="jobPhotos" type="file" multiple accept="image/*,.pdf">
+                  <input id="jobPhotos" type="file" multiple accept="image/*,.pdf" disabled title="Uploads will open after the secure jobs backend is deployed">
                 </label>
                 <button class="primary-action" type="submit">ගැළපෙනම අය සොයන්න</button>
               </form>
@@ -260,6 +266,7 @@
                 <span>අයකරන ගාස්තුව සහ පළපුරුද්ද</span>
               </div>
               <form id="providerForm" class="form-stack">
+                <p class="form-notice warning" id="providerDemoNotice">Provider registration තවම විවෘත කර නැහැ. Google secure backend සම්බන්ධ කළ පසු මෙම form එක භාවිත කළ හැක.</p>
                 <div class="two-col">
                   <label>
                     <span>ඔබේ නම</span>
@@ -369,10 +376,10 @@
                     <option value="reference">Reference</option>
                     <option value="portfolio">Public portfolio sample</option>
                   </select>
-                  <input id="providerDocs" type="file" multiple accept="image/*,.pdf">
+                  <input id="providerDocs" type="file" multiple accept="image/*,.pdf" disabled>
                 </label>
                 <p class="form-note">ඔබේ ලියාපදිංචිය තහවුරු කළ පසු, ඔබට ගැළපෙන වැඩ SMS හෝ WhatsApp මගින් දැනුම් දෙනු ලැබේ.</p>
-                <button class="primary-action" type="submit">ලියාපදිංචි වන්න</button>
+                <button class="primary-action" id="providerSubmit" type="submit" disabled>ලියාපදිංචි වන්න</button>
                 <div id="providerStatusMessage" class="success-message" hidden></div>
               </form>
             </section>
@@ -431,7 +438,7 @@
 
     <script>window.PODI_PODI_CONFIG = window.PODI_PODI_CONFIG || null;</script>
     <script src="config.js"></script>
-    <script src="app.js?v=21"></script>
+    <script src="app.js?v=24"></script>
     <script type="module" src="backend-client.js?v=1"></script>
   </body>
 </html>

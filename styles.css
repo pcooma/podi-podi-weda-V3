@@ -182,6 +182,35 @@ h3 {
   gap: 8px;
 }
 
+.launch-notice,
+.form-notice {
+  border: 1px solid #d89a13;
+  background: #fff4cf;
+  color: #593b00;
+  border-radius: 14px;
+  padding: 12px 16px;
+}
+
+.launch-notice {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 18px;
+}
+
+.launch-notice strong { font-size: .98rem; }
+.launch-notice span,
+.form-notice { font-size: .86rem; line-height: 1.5; }
+.form-notice { margin: 0; }
+.form-notice.warning { border-color: #c95b38; background: #fff0e9; color: #6b2414; }
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: .6;
+}
+
 .backend-status {
   border-radius: 999px;
   padding: 0.45rem 0.75rem;

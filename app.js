@@ -1,4 +1,4 @@
-const STORAGE_KEY = "podi-podi-weda-demo-v2";
+const STORAGE_KEY = "podi-podi-weda-demo-v3";
 
 const categories = [
   {
@@ -1354,13 +1354,22 @@ let state = loadState();
 function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return structuredClone(initialState);
-  const parsed = JSON.parse(raw);
-  const knownIds = new Set((parsed.providers || []).map((provider) => provider.id));
-  const missingSeedProviders = demoProviders.filter((provider) => !knownIds.has(provider.id));
-  if (missingSeedProviders.length) {
-    parsed.providers = [...missingSeedProviders, ...(parsed.providers || [])];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") throw new Error("Invalid saved state");
+    ["providers", "jobs", "leads", "payments", "bookings", "reviews", "disputes", "audit"].forEach((key) => {
+      if (!Array.isArray(parsed[key])) parsed[key] = structuredClone(initialState[key]);
+    });
+    const knownIds = new Set(parsed.providers.map((provider) => provider.id));
+    const missingSeedProviders = demoProviders.filter((provider) => !knownIds.has(provider.id));
+    if (missingSeedProviders.length) {
+      parsed.providers = [...missingSeedProviders, ...parsed.providers];
+    }
+    return parsed;
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
+    return structuredClone(initialState);
   }
-  return parsed;
 }
 
 function saveState() {
@@ -1373,6 +1382,20 @@ function $(selector) {
 
 function $all(selector) {
   return [...document.querySelectorAll(selector)];
+}
+
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>'"]/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#39;",
+    '"': "&quot;"
+  })[character]);
+}
+
+function secureBackendConfigured() {
+  return Boolean(window.PodiBackend?.isConfigured?.());
 }
 
 function categoryBySlug(slug) {
@@ -1987,7 +2010,7 @@ function renderAiPanel(job) {
         <span class="tag">${translateSkillLevel(c.skillLevel)}</span>
         <span class="tag">${translateTier(c.minTier)}</span>
       </div>
-      ${c.accessInfo ? `<p class="muted"><strong>Access:</strong> ${c.accessInfo}</p>` : ""}
+      ${c.accessInfo ? `<p class="muted"><strong>Access:</strong> ${escapeHTML(c.accessInfo)}</p>` : ""}
       <ol class="question-list">${c.questions.map((q) => `<li>${q}</li>`).join("")}</ol>
     </div>
   `;
@@ -2031,8 +2054,8 @@ function renderShortlist(job) {
       <div class="provider-body">
         <div class="provider-topline">
           <div>
-            <h3>${provider.name}</h3>
-            <p class="muted">${provider.rationale}</p>
+            <h3>${escapeHTML(provider.name)}</h3>
+            <p class="muted">${escapeHTML(provider.rationale)}</p>
           </div>
           <span class="score">${provider.score}</span>
         </div>
@@ -2057,14 +2080,14 @@ function renderShortlist(job) {
           <div class="${provider.marketOffer.gap <= 0 ? "offer-good" : "offer-gap"}"><small>${provider.marketOffer.gap <= 0 ? "Client saves" : "Gap"}</small><strong>රු. ${Math.abs(provider.marketOffer.gap).toLocaleString()}</strong></div>
         </div>` : ""}
         <div class="mini-grid">
-          <div class="mini-stat"><small>ගාස්තුව</small><strong>${provider.quoteOnly ? "Quote" : `රු. ${provider.effectiveRate.toLocaleString()}`}</strong></div>
+          <div class="mini-stat"><small>ගාස්තුව</small><strong>${provider.quoteOnly ? "Quote" : `රු. ${Number(provider.effectiveRate ?? provider.rate ?? 0).toLocaleString()}`}</strong></div>
           <div class="mini-stat"><small>ඇගයීම</small><strong>${provider.rating} / 5</strong></div>
           <div class="mini-stat"><small>දුර</small><strong>${provider.marketOffer ? provider.marketOffer.distanceKm : provider.distanceKm} km</strong></div>
           <div class="mini-stat"><small>කණ්ඩායම</small><strong>අය ${provider.teamSize || 1}</strong></div>
           <div class="mini-stat"><small>වේලාවන්</small><strong>${formatSlots(providerTimeSlots(provider))}</strong></div>
           <div class="mini-stat"><small>සපයන දේ</small><strong>${formatSupply(providerSupplyCapabilities(provider))}</strong></div>
         </div>
-        <p class="muted">${provider.portfolio}</p>
+        <p class="muted">${escapeHTML(provider.portfolio)}</p>
         <div class="card-actions">
           <button class="primary-action" type="button" data-unlock="${provider.id}" data-job="${job.id}">සම්බන්ධතා ගන්න</button>
           <button class="ghost-action" type="button" data-book="${provider.id}" data-job="${job.id}">වේලාව වෙන් කරන්න</button>
@@ -2134,8 +2157,8 @@ function renderProviderWorkspace() {
     <div class="lead-card">
       <div class="provider-topline">
         <div>
-          <h3>${workerName} — ${lead.district}</h3>
-          <p class="muted">${job?.description ? `"${job.description.slice(0, 60)}${job.description.length > 60 ? "…" : ""}"` : ""}</p>
+          <h3>${escapeHTML(workerName)} — ${escapeHTML(lead.district)}</h3>
+          <p class="muted">${job?.description ? `"${escapeHTML(job.description.slice(0, 60))}${job.description.length > 60 ? "…" : ""}"` : ""}</p>
           <p class="muted">තත්ත්වය: ${translateLeadStatus(lead.status)}</p>
         </div>
         <span class="status-pill">${translateUrgency(lead.urgency)}</span>
@@ -2163,8 +2186,8 @@ function renderProfileRateManager(category) {
     ${providers.length ? providers.map((provider) => `
       <div class="provider-rate-card">
         <div>
-          <h3>${provider.name}</h3>
-          <p class="muted">${formatProviderRates(provider)}</p>
+          <h3>${escapeHTML(provider.name)}</h3>
+          <p class="muted">${escapeHTML(formatProviderRates(provider))}</p>
           <p class="muted">වේලාවන්: ${formatSlots(providerTimeSlots(provider))} · ${provider.approved ? "අනුමතයි" : "Admin approval pending"}</p>
         </div>
         <div class="row-actions">
@@ -2274,8 +2297,8 @@ function renderAdmin() {
     <div class="admin-row">
       <div class="provider-topline">
         <div>
-          <h3>${provider.name}</h3>
-          <p class="muted">${categoryBySlug(provider.category).si} · ${provider.workerType || categoryBySlug(provider.category).workerType} · ${provider.tier} · ${provider.requiredEvidence || categoryBySlug(provider.category).evidence}</p>
+          <h3>${escapeHTML(provider.name)}</h3>
+          <p class="muted">${escapeHTML(categoryBySlug(provider.category).si)} · ${escapeHTML(provider.workerType || categoryBySlug(provider.category).workerType)} · ${escapeHTML(provider.tier)} · ${escapeHTML(provider.requiredEvidence || categoryBySlug(provider.category).evidence)}</p>
         </div>
         <span class="status-pill">${provider.approved ? "අනුමතයි" : "පරීක්ෂාවට"}</span>
       </div>
@@ -2289,8 +2312,8 @@ function renderAdmin() {
     <div class="admin-row">
       <div class="provider-topline">
         <div>
-          <h3>${dispute.title}</h3>
-          <p class="muted">${dispute.detail}</p>
+          <h3>${escapeHTML(dispute.title)}</h3>
+          <p class="muted">${escapeHTML(dispute.detail)}</p>
         </div>
         <span class="status-pill">${dispute.status}</span>
       </div>
@@ -2300,6 +2323,10 @@ function renderAdmin() {
 }
 
 function unlockContact(jobId, providerId) {
+  if (!secureBackendConfigured()) {
+    toast("Contact payments තවම live කර නැහැ. මෙය preview එකක් පමණයි.");
+    return;
+  }
   const job = state.jobs.find((item) => item.id === jobId);
   if (!job) return;
   const provider = job.matches.find((item) => item.id === providerId);
@@ -2323,6 +2350,10 @@ function unlockContact(jobId, providerId) {
 }
 
 function bookProvider(jobId, providerId) {
+  if (!secureBackendConfigured()) {
+    toast("Bookings තවම live කර නැහැ. Secure backend සම්බන්ධ කළ පසු භාවිත කළ හැක.");
+    return;
+  }
   const job = state.jobs.find((item) => item.id === jobId);
   if (!job) return;
   const provider = job.matches.find((item) => item.id === providerId);
@@ -2352,6 +2383,10 @@ function bookProvider(jobId, providerId) {
 }
 
 async function addProvider() {
+  if (!secureBackendConfigured()) {
+    toast("Provider registration තවම විවෘත කර නැහැ. සැබෑ පුද්ගලික තොරතුරු ඇතුළත් නොකරන්න.");
+    return;
+  }
   const name = $("#providerName").value.trim();
   const phone = $("#providerPhone").value.trim();
   if (!name) { toast("ඔබේ නම ඇතුළත් කරන්න."); return; }
@@ -2666,10 +2701,30 @@ function initializeBackendStatus() {
   if (!backend.isConfigured()) {
     status.textContent = "Demo mode";
     status.classList.add("demo");
+    $("#launchNotice").hidden = false;
+    $("#clientDemoNotice").hidden = false;
+    $("#providerDemoNotice").hidden = false;
+    $("#providerSubmit").disabled = true;
+    $("#providerDocs").disabled = true;
+    $("#accountEmail").disabled = true;
+    $("#accountPassword").disabled = true;
+    $("#loginButton").disabled = true;
+    $("#registerButton").disabled = true;
+    $("#adminTab").textContent = "Demo Admin";
     return;
   }
   status.textContent = "Secure backend";
   status.classList.remove("demo");
+  $("#launchNotice").hidden = true;
+  $("#clientDemoNotice").hidden = true;
+  $("#providerDemoNotice").hidden = true;
+  $("#providerSubmit").disabled = false;
+  $("#providerDocs").disabled = false;
+  $("#accountEmail").disabled = false;
+  $("#accountPassword").disabled = false;
+  $("#loginButton").disabled = false;
+  $("#registerButton").disabled = false;
+  $("#adminTab").hidden = true;
   backend.onAuthChange(async (user) => {
     accountStatus.textContent = user ? `Login: ${user.email || user.uid}` : "Login කර ඔබේ profile එක secure ලෙස save කරන්න.";
     $("#loginButton").hidden = Boolean(user);

@@ -1,5 +1,7 @@
 # Podi Podi Weda Webapp Prototype
 
+> **Public launch status:** GitHub Pages serves a preview, not the production marketplace. The preview keeps client matching test data in the visitor's browser. Account entry, provider registration, document uploads, payments and bookings remain disabled until the separate authenticated backend is deployed and configured.
+
 This folder now contains a dependency-free Sinhala-first workforce marketplace prototype based on the two specification documents in this repo.
 
 ## What is included
