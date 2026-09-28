@@ -2632,6 +2632,7 @@ document.addEventListener("click", (event) => {
 function switchView(viewName) {
   $all(".role-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === viewName));
   $all(".view").forEach((view) => view.classList.toggle("active", view.id === `${viewName}-view`));
+  if (viewName === "provider" && typeof renderAvailabilityCalendar === "function") renderAvailabilityCalendar();
 }
 
 function on(selector, eventName, handler) {
@@ -2794,10 +2795,12 @@ function initializeBackendStatus() {
     $("#logoutButton").hidden = !user;
     $("#bookingsToggle").hidden = !user;
     $("#accountEmail").disabled = Boolean(user);
+    if (!user) { currentProviderUid = null; if ($("#availabilityPanel")) $("#availabilityPanel").hidden = true; }
     if (user) {
       try {
         const { user: saved } = await backend.getMe();
         if (!saved) return;
+        currentProviderUid = saved.user_uid || null;
         if (saved.display_name) $("#providerName").value = saved.display_name;
         if (saved.username) $("#providerUsername").value = saved.username;
         if (saved.contact_phone) $("#providerPhone").value = saved.contact_phone;
@@ -2819,6 +2822,7 @@ function initializeBackendStatus() {
         if (Number.isFinite(saved.lat) && Number.isFinite(saved.lng)) {
           setLocationField($("#providerLat").closest("[data-location]"), saved.lat, saved.lng);
         }
+        renderAvailabilityCalendar();
       } catch (error) {
         toast(error.message || "සුරැකි තොරතුරු පූරණය කිරීමට නොහැකි විය.");
       }
@@ -3039,6 +3043,45 @@ on("#bookingConfirm", "click", async () => {
 on("#bookingsToggle", "click", openBookingsList);
 on("#bookingsClose", "click", () => { $("#bookingsModal").hidden = true; });
 
+// ---- Provider availability calendar (next 14 days x 4 slots) ----
+let currentProviderUid = null;
+
+async function renderAvailabilityCalendar() {
+  const panel = $("#availabilityPanel");
+  if (!panel) return;
+  if (!currentProviderUid || !window.PodiBackend?.currentUser()) { panel.hidden = true; return; }
+  panel.hidden = false;
+  const cal = $("#availabilityCalendar");
+  cal.innerHTML = `<p class="muted">පූරණය වෙමින්...</p>`;
+  const now = new Date();
+  const days = [];
+  for (let i = 0; i < 14; i += 1) days.push(new Date(now.getTime() + i * 86400000).toISOString().slice(0, 10));
+  let occupied = [];
+  try {
+    const result = await window.PodiBackend.getAvailability(currentProviderUid, days[0], days[days.length - 1]);
+    occupied = result.occupied || [];
+  } catch (error) {
+    cal.innerHTML = `<p class="muted">${escapeHTML(error.message || "පූරණය අසාර්ථකයි.")}</p>`;
+    return;
+  }
+  const occ = {};
+  occupied.forEach((item) => { occ[`${item.date}|${item.slot}`] = item; });
+  const slots = ["morning", "lunch", "evening", "night"];
+  cal.innerHTML = days.map((date) => {
+    let label = date;
+    try { label = new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); } catch (error) { /* keep date */ }
+    const chips = slots.map((slot) => {
+      const item = occ[`${date}|${slot}`];
+      const cls = item ? (item.status === "blocked" ? "blocked" : "booked") : "free";
+      const attrs = item
+        ? (item.status === "blocked" ? `data-avail-unblock="${item.bookingId}"` : "")
+        : `data-avail-block="${date}" data-avail-slot="${slot}"`;
+      return `<button type="button" class="avail-slot ${cls}" ${attrs}>${timeSlotLabels[slot] || slot}</button>`;
+    }).join("");
+    return `<div class="avail-day"><span class="avail-day-label">${escapeHTML(label)}</span><div class="avail-slots">${chips}</div></div>`;
+  }).join("");
+}
+
 async function openBookingsList() {
   $("#bookingsModal").hidden = false;
   const list = $("#bookingsList");
@@ -3062,12 +3105,16 @@ function renderBookingCard(booking) {
   if (booking.role === "provider" && booking.status === "confirmed") actions.push(`<button class="ghost-action" data-booking-complete="${booking.id}">අවසන් කළා</button>`);
   if (["confirmed", "in_progress", "completed"].includes(booking.status)) actions.push(`<button class="ghost-action" data-booking-contact="${booking.id}">සම්බන්ධතා විස්තර</button>`);
   if (["requested", "confirmed"].includes(booking.status)) actions.push(`<button class="ghost-action" data-booking-cancel="${booking.id}">අවලංගු</button>`);
+  const rateWidget = (booking.status === "completed" && !booking.ratedByMe)
+    ? `<div class="rate-row"><span class="booking-meta">තරු දෙන්න:</span> ${[1, 2, 3, 4, 5].map((n) => `<button class="star-btn" data-rate-booking="${booking.id}" data-stars="${n}" aria-label="${n} තරු" title="${n} තරු">★</button>`).join("")}</div>`
+    : "";
   return `<div class="booking-card">
     <div><span class="booking-status ${booking.status}">${BOOKING_STATUS_LABEL[booking.status] || booking.status}</span></div>
     <strong>${escapeHTML(booking.role === "provider" ? "පාරිභෝගික ඉල්ලීමක්" : booking.providerName || "සේවා සපයන්නා")}</strong>
     <p class="booking-meta">${escapeHTML(dates)} · ${escapeHTML(slots)}</p>
     <p class="booking-meta">ගෙවීම: ${PAYMENT_LABEL[booking.paymentMethod] || "-"}</p>
     <div class="row-actions">${actions.join("")}</div>
+    ${rateWidget}
     <div class="contact-reveal" id="contact-${booking.id}" hidden></div>
   </div>`;
 }
@@ -3087,6 +3134,31 @@ document.addEventListener("click", async (event) => {
       catch (error) { toast(error.message || "අසාර්ථකයි."); button.disabled = false; }
       return;
     }
+  }
+  const blockChip = event.target.closest("[data-avail-block]");
+  if (blockChip) {
+    try { await window.PodiBackend.blockDates({ startDate: blockChip.dataset.availBlock, endDate: blockChip.dataset.availBlock, slots: [blockChip.dataset.availSlot] }); renderAvailabilityCalendar(); }
+    catch (error) { toast(error.message || "අසාර්ථකයි."); }
+    return;
+  }
+  const unblockChip = event.target.closest("[data-avail-unblock]");
+  if (unblockChip) {
+    try { await window.PodiBackend.cancelBooking(unblockChip.dataset.availUnblock); renderAvailabilityCalendar(); }
+    catch (error) { toast(error.message || "අසාර්ථකයි."); }
+    return;
+  }
+  const rateButton = event.target.closest("[data-rate-booking]");
+  if (rateButton) {
+    rateButton.disabled = true;
+    try {
+      await window.PodiBackend.submitRating({ bookingId: rateButton.dataset.rateBooking, stars: Number(rateButton.dataset.stars) });
+      toast("ස්තූතියි! ඔබේ තරු ලකුණු සටහන් විය.");
+      openBookingsList();
+    } catch (error) {
+      toast(error.message || "තරු ලකුණු කිරීම අසාර්ථකයි.");
+      rateButton.disabled = false;
+    }
+    return;
   }
   const contactButton = event.target.closest("[data-booking-contact]");
   if (contactButton) {

@@ -122,7 +122,8 @@ window.PodiBackend = {
   getAvailability: (providerUid, from, to) => api("get_availability", { method: "POST", body: JSON.stringify({ providerUid, from, to }) }),
   getBookings: () => api("get_bookings"),
   revealContact: (bookingId) => api("reveal_contact", { method: "POST", body: JSON.stringify({ bookingId }) }),
-  blockDates: (block) => api("block_dates", { method: "POST", body: JSON.stringify(block) })
+  blockDates: (block) => api("block_dates", { method: "POST", body: JSON.stringify(block) }),
+  submitRating: (rating) => api("submit_rating", { method: "POST", body: JSON.stringify(rating) })
 };
 
 window.dispatchEvent(new CustomEvent("podi-backend-ready"));

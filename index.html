@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f5c542">
     <title>පොඩි පොඩි වැඩ | සේවා ලබාගන්න</title>
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=33">
+    <link rel="stylesheet" href="styles.css?v=35">
   </head>
   <body>
     <div class="app-shell">
@@ -408,6 +408,17 @@
             </section>
           </div>
 
+          <section class="panel" id="availabilityPanel" hidden>
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">ඔබේ දින දර්ශනය</p>
+                <h2>ලබාගත හැකි / වෙන් වූ දින</h2>
+              </div>
+            </div>
+            <p class="booking-meta">නිදහස් වේලාවක් ඔබා වසන්න (block). ඔබම වැසූ එකක් නැවත ඔබා විවෘත කරන්න.</p>
+            <div id="availabilityCalendar" class="availability-grid"><p class="muted">පූරණය වෙමින්...</p></div>
+          </section>
+
           <section class="panel">
             <div class="panel-head">
               <div>
@@ -481,7 +492,7 @@
 
     <script>window.PODI_PODI_CONFIG = window.PODI_PODI_CONFIG || null;</script>
     <script src="config.js"></script>
-    <script src="app.js?v=34"></script>
-    <script type="module" src="backend-client.js?v=4"></script>
+    <script src="app.js?v=35"></script>
+    <script type="module" src="backend-client.js?v=5"></script>
   </body>
 </html>

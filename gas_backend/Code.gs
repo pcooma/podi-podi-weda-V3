@@ -12,7 +12,7 @@
  *   ROOT_FOLDER_ID, USERS_FOLDER_ID, DB_SPREADSHEET_ID, MAX_UPLOAD_BYTES
  */
 
-const BUILD = '2026-09-28-drive-v5-bookings';
+const BUILD = '2026-09-28-drive-v6-ratings-calendar';
 const DEFAULTS = Object.freeze({
   ROOT_FOLDER_ID: '1zwnXP1BQJudpeQSGpUPOob5GpEUL3mH5',
   USERS_FOLDER_ID: '193a7fFJaV9QfzK5QZj9jQ95U1OQ_-oVk',
@@ -25,14 +25,16 @@ const TABS = Object.freeze({
   DOCUMENTS: 'DB_Documents',
   JOBS: 'DB_Jobs',
   BOOKINGS: 'DB_Bookings',
+  RATINGS: 'DB_Ratings',
   AUDIT: 'DB_Audit'
 });
 
 const HEADERS = Object.freeze({
-  DB_Users: ['user_uid','firebase_uid','email','username','display_name','roles_json','status','district','category','skills_json','phone','experience_years','rate_lkr','profile_folder_id','profile_json_file_id','created_at','updated_at','lat','lng','service_radius_km','engagement_types_json','days_per_week'],
+  DB_Users: ['user_uid','firebase_uid','email','username','display_name','roles_json','status','district','category','skills_json','phone','experience_years','rate_lkr','profile_folder_id','profile_json_file_id','created_at','updated_at','lat','lng','service_radius_km','engagement_types_json','days_per_week','rating_sum','rating_count'],
   DB_Documents: ['document_id','user_uid','document_type','original_filename','mime_type','size_bytes','drive_file_id','status','created_at'],
   DB_Jobs: ['job_id','client_uid','category','description','district','urgency','budget_lkr','requested_date','job_size','workers_needed','materials_by','access_slots_json','status','created_at','updated_at','lat','lng','engagement_type','estimated_hours','duration_days','days_per_week'],
   DB_Bookings: ['booking_id','job_id','client_uid','provider_uid','status','agreed_amount_lkr','created_at','updated_at','start_date','end_date','slots_json','payment_method','payment_status'],
+  DB_Ratings: ['rating_id','booking_id','rater_uid','ratee_uid','role','stars','comment','created_at'],
   DB_Audit: ['audit_id','actor_uid','action','target_type','target_id','metadata_json','created_at']
 });
 
@@ -133,6 +135,7 @@ function doPost(e) {
       case 'get_bookings': result = getBookings_(identity); break;
       case 'reveal_contact': result = revealContact_(identity, payload); break;
       case 'block_dates': result = blockDates_(identity, payload); break;
+      case 'submit_rating': result = submitRating_(identity, payload); break;
       default: throw new Error('Unknown action.');
     }
     return json_({ok: true, data: result});
@@ -427,7 +430,7 @@ function getAvailability_(identity, input) {
     const slots = jsonArray_(row.slots_json);
     const effSlots = slots.length ? slots : BOOKING_SLOTS;
     dateList_(row.start_date, row.end_date).forEach(function(d) {
-      if (wanted[d]) effSlots.forEach(function(s) { occupied.push({date: d, slot: s}); });
+      if (wanted[d]) effSlots.forEach(function(s) { occupied.push({date: d, slot: s, status: row.status, bookingId: row.booking_id}); });
     });
   });
   return {providerUid: providerUid, occupied: occupied};
@@ -436,6 +439,10 @@ function getAvailability_(identity, input) {
 function getBookings_(identity) {
   const me = findBy_(TABS.USERS, 'firebase_uid', identity.localId);
   const myUid = me ? me.user_uid : null;
+  const myRatedBookings = {};
+  rows_(TABS.RATINGS).forEach(function(r) {
+    if (String(r.rater_uid) === String(identity.localId) || (myUid && String(r.rater_uid) === String(myUid))) myRatedBookings[r.booking_id] = true;
+  });
   return rows_(TABS.BOOKINGS).filter(function(row) {
     return row.status !== 'blocked' && (row.client_uid === identity.localId || (myUid && row.provider_uid === myUid));
   }).map(function(row) {
@@ -447,6 +454,7 @@ function getBookings_(identity) {
       paymentMethod: row.payment_method, paymentStatus: row.payment_status,
       amount: Number(row.agreed_amount_lkr || 0),
       providerName: provider ? provider.display_name : '', providerUid: row.provider_uid,
+      ratedByMe: Boolean(myRatedBookings[row.booking_id]),
       createdAt: row.created_at
     };
   }).sort(function(a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
@@ -483,6 +491,43 @@ function blockDates_(identity, input) {
   appendObject_(sheet_(TABS.BOOKINGS), record);
   audit_(me.user_uid, 'availability.block', 'booking', record.booking_id, {startDate: startDate});
   return {id: record.booking_id, status: 'blocked'};
+}
+
+// Either party rates the other after a booking is completed.
+function submitRating_(identity, input) {
+  requireVerifiedEmail_(identity);
+  const booking = findBy_(TABS.BOOKINGS, 'booking_id', clean_(input.bookingId, 80));
+  if (!booking) throw new Error('Booking not found.');
+  if (booking.status !== 'completed') throw new Error('You can rate only after the work is completed.');
+  const me = findBy_(TABS.USERS, 'firebase_uid', identity.localId);
+  const isClient = booking.client_uid === identity.localId;
+  const isProvider = me && booking.provider_uid === me.user_uid;
+  if (!isClient && !isProvider) throw new Error('Not your booking.');
+  const raterUid = isProvider ? me.user_uid : identity.localId;
+  const rateeUid = isProvider ? booking.client_uid : booking.provider_uid;
+  const stars = number_(input.stars, 1, 5);
+  const comment = clean_(input.comment, 500);
+  const already = rows_(TABS.RATINGS).some(function(r) { return r.booking_id === booking.booking_id && String(r.rater_uid) === String(raterUid); });
+  if (already) throw new Error('You already rated this booking.');
+  const now = new Date().toISOString();
+  appendObject_(sheet_(TABS.RATINGS), {
+    rating_id: Utilities.getUuid(), booking_id: booking.booking_id, rater_uid: raterUid,
+    ratee_uid: rateeUid, role: isProvider ? 'provider_rates_client' : 'client_rates_provider',
+    stars: stars, comment: comment, created_at: now
+  });
+  if (isClient) {
+    const provider = findBy_(TABS.USERS, 'user_uid', rateeUid);
+    if (provider) {
+      updateBy_(sheet_(TABS.USERS), 'user_uid', rateeUid, {
+        rating_sum: Number(provider.rating_sum || 0) + stars,
+        rating_count: Number(provider.rating_count || 0) + 1,
+        updated_at: now
+      });
+      CacheService.getScriptCache().remove('approved_providers');
+    }
+  }
+  audit_(raterUid, 'rating.submit', 'booking', booking.booking_id, {stars: stars});
+  return {ok: true, stars: stars};
 }
 
 function setProviderStatus_(input) {
@@ -656,7 +701,8 @@ function publicProvider_(row) {
     radiusKm: Number(row.service_radius_km || 15) || 15, perKmRate: 45, workingDays: [1, 2, 3, 4, 5, 6],
     engagementTypes: engagementTypes.length ? engagementTypes : ['quick', 'day'],
     daysPerWeek: Number(row.days_per_week || 0),
-    rating: 0, ratingCount: 0, jobsCompleted: 0, responseRate: 0.6, teamSize: 1,
+    rating: Number(row.rating_count || 0) ? Number(row.rating_sum || 0) / Number(row.rating_count) : 0,
+    ratingCount: Number(row.rating_count || 0), jobsCompleted: 0, responseRate: 0.6, teamSize: 1,
     availableSlots: ['morning','lunch','evening'], supplyCapabilities: ['labour_only'],
     portfolio: 'Verified provider profile'
   };

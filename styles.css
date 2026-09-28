@@ -1336,3 +1336,14 @@ textarea {
 .booking-status.declined, .booking-status.cancelled { background: #f3d6d6; color: #8b2626; }
 .booking-card .row-actions { flex-wrap: wrap; gap: 8px; }
 .contact-reveal { background: #f3f7f4; border-radius: 10px; padding: 10px 12px; font-weight: 600; }
+
+/* Availability calendar + ratings */
+.availability-grid { display: grid; gap: 8px; }
+.avail-day { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; }
+.avail-day-label { font-size: 0.85rem; font-weight: 600; }
+.avail-slots { display: flex; gap: 6px; flex-wrap: wrap; }
+.avail-slot { padding: 4px 12px; border-radius: 999px; font-size: 0.8rem; border: 1px solid #cfe3d7; cursor: pointer; background: #eef7f1; color: #135e4b; }
+.avail-slot.booked { background: #f3d6d6; color: #8b2626; cursor: not-allowed; border-color: #e0aeae; }
+.avail-slot.blocked { background: #eeeeee; color: #666; text-decoration: line-through; border-color: #ddd; }
+.star-btn { background: none; border: none; font-size: 1.35rem; line-height: 1; color: #e0b000; cursor: pointer; padding: 0 2px; }
+.rate-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
