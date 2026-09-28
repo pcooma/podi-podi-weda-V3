@@ -1,5 +1,5 @@
 window.PODI_PODI_CONFIG = {
-  apiBaseUrl: "http://localhost:8080",
+  appsScriptUrl: "https://script.google.com/macros/s/REPLACE_WITH_DEPLOYMENT_ID/exec",
   firebase: {
     apiKey: "replace-me",
     authDomain: "replace-me.firebaseapp.com",
@@ -7,4 +7,3 @@ window.PODI_PODI_CONFIG = {
     appId: "replace-me"
   }
 };
-

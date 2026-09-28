@@ -15,7 +15,8 @@ let auth = null;
 let currentUser = null;
 
 function isConfigured() {
-  return Boolean(config?.apiBaseUrl && config?.firebase?.apiKey && !config.firebase.apiKey.includes("replace-me"));
+  const backendUrl = config?.appsScriptUrl || config?.apiBaseUrl;
+  return Boolean(backendUrl && config?.firebase?.apiKey && !config.firebase.apiKey.includes("replace-me"));
 }
 
 if (isConfigured()) {
@@ -29,6 +30,21 @@ if (isConfigured()) {
 async function api(path, options = {}) {
   if (!currentUser) throw new Error("Please sign in first.");
   const token = await currentUser.getIdToken();
+  if (config.appsScriptUrl) {
+    const action = String(path).replace(/^\/+|\/+$/g, "").replace(/^v1\//, "").replaceAll("/", "_").replaceAll("-", "_");
+    const response = await fetch(config.appsScriptUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        action,
+        idToken: token,
+        payload: options.body ? JSON.parse(options.body) : {}
+      })
+    });
+    const envelope = await response.json().catch(() => ({}));
+    if (!response.ok || envelope.ok === false) throw new Error(envelope.error || `Request failed (${response.status})`);
+    return envelope.data;
+  }
   const response = await fetch(`${config.apiBaseUrl}${path}`, {
     ...options,
     headers: {
@@ -43,6 +59,13 @@ async function api(path, options = {}) {
 }
 
 async function uploadDocument(file, type, consentVersion = "v1") {
+  if (config.appsScriptUrl) {
+    const base64 = await fileToBase64(file);
+    return api("upload_document", {
+      method: "POST",
+      body: JSON.stringify({type, filename: file.name, mimeType: file.type, size: file.size, consentVersion, base64})
+    });
+  }
   const created = await api("/v1/documents/upload-url", {
     method: "POST",
     body: JSON.stringify({
@@ -62,6 +85,15 @@ async function uploadDocument(file, type, consentVersion = "v1") {
   return api(`/v1/documents/${created.document.id}/complete`, { method: "POST", body: "{}" });
 }
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+    reader.onerror = () => reject(new Error("Could not read the selected file."));
+    reader.readAsDataURL(file);
+  });
+}
+
 window.PodiBackend = {
   isConfigured,
   currentUser: () => currentUser,
@@ -78,13 +110,16 @@ window.PodiBackend = {
   login: (email, password) => signInWithEmailAndPassword(auth, email, password),
   logout: () => signOut(auth),
   resetPassword: (email) => sendPasswordResetEmail(auth, email),
-  getMe: () => api("/v1/me"),
-  saveProfile: (profile) => api("/v1/provider-profile", {
+  getMe: async () => ({ user: await api(config.appsScriptUrl ? "get_me" : "/v1/me") }),
+  saveProfile: (profile) => api(config.appsScriptUrl ? "save_profile" : "/v1/provider-profile", {
     method: "PUT",
     body: JSON.stringify(profile)
   }),
   uploadDocument,
-  listDocuments: () => api("/v1/documents")
+  listDocuments: () => api(config.appsScriptUrl ? "list_documents" : "/v1/documents"),
+  submitJob: (job) => api("submit_job", {method: "POST", body: JSON.stringify(job)}),
+  searchProviders: (query) => api("search_providers", {method: "POST", body: JSON.stringify(query)}),
+  createBooking: (booking) => api("create_booking", {method: "POST", body: JSON.stringify(booking)})
 };
 
 window.dispatchEvent(new CustomEvent("podi-backend-ready"));

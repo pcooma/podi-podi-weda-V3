@@ -1,10 +1,14 @@
-# Google backend foundation
+# Google Drive-first backend
 
 ## Current status
 
-The repository contains a deployable backend foundation, but it is not live until a Google Cloud/Firebase project, Cloud SQL database and private Cloud Storage bucket are configured. Without `config.js` values, the browser deliberately displays **Demo mode** and continues to use local browser storage.
+The production pilot uses Firebase Authentication for sign-in and a Google Apps Script web app for the API. User records are stored as private per-user folders in the supplied Google Drive root; the master Google Sheet stores searchable indexes, jobs, bookings, documents, and audit events.
 
-## Implemented
+The older `api/` Cloud Run foundation remains in the repository as a future migration option. It is not required for the Drive-first pilot and must not be deployed alongside it without an explicit migration plan.
+
+Use [GO_LIVE_GUIDE.md](GO_LIVE_GUIDE.md) for the complete setup, deployment, testing, and security checklist. The deployable Apps Script source is [gas_backend/Code.gs](gas_backend/Code.gs), with its manifest in [gas_backend/appsscript.json](gas_backend/appsscript.json).
+
+## Legacy Cloud Run foundation
 
 - Firebase email/password authentication with verification email.
 - Firebase ID-token verification in the API.

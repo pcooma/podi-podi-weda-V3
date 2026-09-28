@@ -1810,8 +1810,8 @@ function scoreProvider(provider, job, classification) {
   return result.eligible ? result.provider : null;
 }
 
-function diagnoseSupplyGap(job) {
-  const attempts = state.providers.map((provider) => evaluateProvider(provider, job, job.classification));
+function diagnoseSupplyGap(job, providers = state.providers) {
+  const attempts = providers.map((provider) => evaluateProvider(provider, job, job.classification));
   const sameCategory = attempts.filter((item) => item.provider.category === job.classification.category.slug);
   const relevantAttempts = sameCategory.length ? sameCategory : attempts.filter((item) => item.reasons?.length && !item.reasons.includes("වැඩේ වර්ගය ගැළපෙන්නේ නැහැ"));
   const reasonCounts = relevantAttempts
@@ -1836,7 +1836,7 @@ function diagnoseSupplyGap(job) {
   };
 }
 
-function createJob(formData) {
+async function createJob(formData) {
   const classification = classifyRequirement(formData.description, formData.structuredInput);
   const job = {
     id: `job-${Date.now()}`,
@@ -1855,7 +1855,34 @@ function createJob(formData) {
     classification,
     createdAt: new Date().toISOString()
   };
-  const matches = state.providers
+  let providerPool = state.providers;
+  const backend = window.PodiBackend;
+  if (backend?.isConfigured()) {
+    if (!backend.currentUser()) {
+      toast("ඉල්ලීම සුරක්ෂිතව save කිරීමට login වෙන්න.");
+      return;
+    }
+    try {
+      const savedJob = await backend.submitJob({
+        category: classification.category.slug,
+        description: job.description,
+        district: job.district,
+        urgency: job.urgency,
+        budgetLkr: job.budget,
+        requestedDate: job.date,
+        jobSize: job.jobSize,
+        workersNeeded: job.workersNeeded,
+        materialsBy: job.materialsBy,
+        accessSlots: job.accessSlots
+      });
+      job.id = savedJob.id;
+      providerPool = await backend.searchProviders({category: classification.category.slug, district: job.district});
+    } catch (error) {
+      toast(error.message || "ඉල්ලීම Google Drive වෙත save කළ නොහැකි විය.");
+      return;
+    }
+  }
+  const matches = providerPool
     .map((provider) => scoreProvider(provider, job, classification))
     .filter(Boolean)
     .sort((a, b) => b.score - a.score)
@@ -1863,7 +1890,7 @@ function createJob(formData) {
 
   job.matches = matches.map((match, index) => ({ ...match, rank: index + 1, status: "suggested" }));
   job.status = job.matches.length ? "shortlisted" : "matching";
-  job.diagnostic = job.matches.length ? null : diagnoseSupplyGap(job);
+  job.diagnostic = job.matches.length ? null : diagnoseSupplyGap(job, providerPool);
   state.jobs.unshift(job);
   if (job.matches.length) {
     state.leads.unshift(...job.matches.map((match) => ({
@@ -2299,34 +2326,11 @@ function renderAdmin() {
   `).join("");
 }
 
-function unlockContact(jobId, providerId) {
-  if (!secureBackendConfigured()) {
-    toast("Contact payments තවම live කර නැහැ. මෙය preview එකක් පමණයි.");
-    return;
-  }
-  const job = state.jobs.find((item) => item.id === jobId);
-  if (!job) return;
-  const provider = job.matches.find((item) => item.id === providerId);
-  if (!provider) return;
-  const alreadyUnlocked = state.payments.some(p => p.type === "contact_unlock" && p.jobId === jobId && p.providerId === providerId);
-  if (alreadyUnlocked) { toast(`${provider.name} ගේ සම්බන්ධතා දැනටමත් ලබාගෙන ඇත.`); return; }
-  if (!confirm(`${provider.name} ගේ දුරකථන අංකය ලබාගැනීමට රු. 750 ගෙවීමට සූදානම්ද?`)) return;
-  state.payments.push({
-    id: `pay-${Date.now()}`,
-    type: "contact_unlock",
-    amount: 750,
-    status: "paid",
-    jobId,
-    providerId
-  });
-  job.status = "contact_revealed";
-  state.audit.push(`payment.webhook.paid:${jobId}:${providerId}`);
-  saveState();
-  render();
-  toast(`Contact unlocked for ${provider.name}. Demo phone: 07X XXX XXXX`);
+function unlockContact(_jobId, _providerId) {
+  toast("Contact release එක admin approval සහ payment workflow සමඟ ඉදිරියේදී විවෘත වේ.");
 }
 
-function bookProvider(jobId, providerId) {
+async function bookProvider(jobId, providerId) {
   if (!secureBackendConfigured()) {
     toast("Bookings තවම live කර නැහැ. Secure backend සම්බන්ධ කළ පසු භාවිත කළ හැක.");
     return;
@@ -2340,6 +2344,12 @@ function bookProvider(jobId, providerId) {
   if (alreadyBooked) { toast(`${provider.name} සමඟ දැනටමත් booking කර ඇත.`); return; }
   const agreedAmount = provider.quoteOnly ? 0 : Number(provider.effectiveRate || provider.rate || 0);
   const commissionAmount = provider.quoteOnly ? 0 : Math.round(agreedAmount * 0.06);
+  try {
+    await window.PodiBackend.createBooking({jobId, providerUid: providerId, agreedAmountLkr: agreedAmount});
+  } catch (error) {
+    toast(error.message || "Booking request එක save කළ නොහැකි විය.");
+    return;
+  }
   state.bookings.push({
     id: `booking-${Date.now()}`,
     jobId,
@@ -2434,6 +2444,7 @@ async function addProvider() {
         category: provider.category,
         skills: provider.skills,
         experienceYears: provider.experience,
+        rateLkr: provider.rate,
         evidenceSummary: evidence,
         preferredLanguage: "si"
       });
@@ -2517,7 +2528,7 @@ document.addEventListener("click", (event) => {
   if (unlockButton) unlockContact(unlockButton.dataset.job, unlockButton.dataset.unlock);
 
   const bookButton = event.target.closest("[data-book]");
-  if (bookButton) bookProvider(bookButton.dataset.job, bookButton.dataset.book);
+  if (bookButton) void bookProvider(bookButton.dataset.job, bookButton.dataset.book);
 
   const responseButton = event.target.closest("[data-respond]");
   if (responseButton) {
@@ -2574,11 +2585,11 @@ function on(selector, eventName, handler) {
   if (node) node.addEventListener(eventName, handler);
 }
 
-on("#jobForm", "submit", (event) => {
+on("#jobForm", "submit", async (event) => {
   event.preventDefault();
   const jobCategory = $("#jobCategory").value;
   const selectedJobSkills = $all("input[name='jobSkill']:checked").map((input) => input.value);
-  createJob({
+  await createJob({
     description: $("#jobDescription").value,
     district: $("#jobDistrict").value,
     urgency: $("#jobUrgency").value,
