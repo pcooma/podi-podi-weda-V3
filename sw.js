@@ -1,11 +1,14 @@
-const CACHE_NAME = "podi-podi-weda-v29";
+const CACHE_NAME = "podi-podi-weda-v30";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css?v=27",
-  "./app.js?v=28",
+  "./app.js?v=29",
   "./backend-client.js?v=3",
-  "./manifest.webmanifest"
+  "./manifest.webmanifest",
+  "./icon-192.svg",
+  "./icon-512.svg",
+  "./icon-maskable.svg"
 ];
 
 self.addEventListener("install", (event) => {

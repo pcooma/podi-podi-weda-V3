@@ -2,16 +2,33 @@
   "name": "Podi Podi Weda Workforce Marketplace",
   "short_name": "Podi Weda",
   "description": "Sinhala-first managed workforce marketplace MVP prototype.",
+  "id": "/podi-podi-weda-V3/",
+  "scope": "./",
   "start_url": "./index.html",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#f3f7f4",
   "theme_color": "#f5c542",
+  "categories": ["business", "productivity"],
+  "lang": "si",
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='36' fill='%23135e4b'/%3E%3Ccircle cx='96' cy='96' r='62' fill='%23f5c66a'/%3E%3Ctext x='96' y='112' text-anchor='middle' font-family='Arial' font-size='54' font-weight='800' fill='%2317352f'%3EPP%3C/text%3E%3C/svg%3E",
+      "src": "icon-192.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ]
 }

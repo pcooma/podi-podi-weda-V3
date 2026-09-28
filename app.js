@@ -2778,4 +2778,31 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 
+// Android/desktop "Install app" prompt. Chrome fires beforeinstallprompt when the
+// PWA is installable; we surface a button and trigger the native prompt on click.
+let deferredInstallPrompt = null;
+const installButton = $("#installAppButton");
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  if (installButton) installButton.hidden = false;
+});
+if (installButton) {
+  on("#installAppButton", "click", async () => {
+    if (!deferredInstallPrompt) {
+      toast("App එක install කිරීමට browser menu එකේ ‘Install app’ / ‘Add to Home screen’ තෝරන්න.");
+      return;
+    }
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    installButton.hidden = true;
+    if (outcome === "accepted") toast("App එක install වෙමින් පවතී.");
+  });
+}
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  if (installButton) installButton.hidden = true;
+});
+
 render();
