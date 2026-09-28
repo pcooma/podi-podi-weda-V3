@@ -1859,7 +1859,7 @@ async function createJob(formData) {
   const backend = window.PodiBackend;
   if (backend?.isConfigured()) {
     if (!backend.currentUser()) {
-      toast("ඉල්ලීම සුරක්ෂිතව save කිරීමට login වෙන්න.");
+      toast("ඉල්ලීම ඉදිරියට යාමට ගිණුමට ඇතුළු වන්න.");
       return;
     }
     try {
@@ -1879,7 +1879,7 @@ async function createJob(formData) {
       const providerResult = await backend.searchProviders({category: classification.category.slug, district: job.district, page: 1, pageSize: 50});
       providerPool = Array.isArray(providerResult) ? providerResult : (providerResult.items || []);
     } catch (error) {
-      toast(error.message || "ඉල්ලීම Google Drive වෙත save කළ නොහැකි විය.");
+      toast(error.message || "ඉල්ලීම සුරැකීමට නොහැකි විය. නැවත උත්සාහ කරන්න.");
       return;
     }
   }
@@ -1916,7 +1916,7 @@ async function createJob(formData) {
   state.audit.push(`matches.persisted:${job.matches.length}`);
   saveState();
   render();
-  toast(job.matches.length ? `ගැළපෙන සේවා සපයන්නන් ${job.matches.length}ක් සොයාගන්නා ලදී.` : "දැනට ගැළපෙන සේවා සපයන්නන් නොමැත. Admin review ට යොමු කළා.");
+  toast(job.matches.length ? `ගැළපෙන සේවා සපයන්නන් ${job.matches.length}ක් සොයාගන්නා ලදී.` : "දැනට ගැළපෙන සේවා සපයන්නන් නොමැත. අපි ඔබේ ඉල්ලීම පරීක්ෂා කරමින් සිටිමු.");
   setTimeout(() => {
     document.querySelector(".shortlist-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, 150);
@@ -2138,9 +2138,9 @@ function renderProviderWorkspace() {
   `).join("");
   $("#ratePreview").innerHTML = `
     <div class="rate-row"><strong>${category.priceModel}</strong><span class="muted">ඔබ දාපු ගාස්තුව පාරිභෝගිකයාට පෙනේ.</span></div>
-    <div class="rate-row"><strong>Supply-demand pricing</strong><span class="muted">Client තමන්ට ගෙවිය හැකි මිල දායි. Provider උදේ/lunch/සවස/රාත්‍රී වෙන වෙනම මිල දායි. Match එකේදී ලාභම ගැළපෙන slot එක සහ දුර ගාස්තුව එකතු කර compare කරයි.</span></div>
-    <div class="rate-row"><strong>බඩු / tools</strong><span class="muted">Client බඩු දෙන වැඩ, tools ඕන වැඩ, සහ provider බඩු quote කරන වැඩ වෙන වෙනම match කරයි.</span></div>
-    <div class="rate-row"><strong>වේලාවන්</strong><span class="muted">උදේ, lunch hour, සවස, රාත්‍රී වගේ client දාපු access windows provider availability සමඟ ගලපයි.</span></div>
+    <div class="rate-row"><strong>ගාස්තු</strong><span class="muted">පාරිභෝගිකයාට ගෙවිය හැකි මුදල සඳහන් කළ හැක. සේවා සපයන්නා වේලාව අනුව ගාස්තුව දක්වයි. දුර සහ වේලාව සලකා සුදුසු විකල්ප පෙන්වයි.</span></div>
+    <div class="rate-row"><strong>බඩු සහ උපකරණ</strong><span class="muted">පාරිභෝගිකයා සපයන බඩු, සේවා සපයන්නාගේ උපකරණ සහ බඩු සපයන සේවා වෙන වෙනම සලකා බලයි.</span></div>
+    <div class="rate-row"><strong>වැඩ කළ හැකි වේලාව</strong><span class="muted">පාරිභෝගිකයා සඳහන් කරන වේලාව සේවා සපයන්නාගේ ලබාගත හැකි වේලාව සමඟ සසඳයි.</span></div>
     <div class="rate-row"><strong>වැඩ ගැලපීම</strong><span class="muted">${category.si} ඉල්ලීම්වලට ඔබේ skills, ප්‍රදේශය, ගාස්තුව, පරීක්ෂාව ගැලපේද බලයි.</span></div>
     <div class="rate-row"><strong>පරීක්ෂාව</strong><span class="muted">${category.evidence}</span></div>
   `;
@@ -2193,7 +2193,7 @@ function renderProfileRateManager(category) {
         <div>
           <h3>${escapeHTML(provider.name)}</h3>
           <p class="muted">${escapeHTML(formatProviderRates(provider))}</p>
-          <p class="muted">වේලාවන්: ${formatSlots(providerTimeSlots(provider))} · ${provider.approved ? "අනුමතයි" : "Admin approval pending"}</p>
+      <p class="muted">වේලාවන්: ${formatSlots(providerTimeSlots(provider))} · ${provider.approved ? "පරීක්ෂා කර ඇත" : "පරීක්ෂා වෙමින්"}</p>
         </div>
         <div class="row-actions">
           <button class="ghost-action" type="button" data-rate-mode="single" data-provider-rate="${provider.id}">එකම ගාස්තුව කරන්න</button>
@@ -2329,7 +2329,7 @@ function renderAdmin() {
 }
 
 function unlockContact(_jobId, _providerId) {
-  toast("පළමු මාස 6 නොමිලේ. Booking තහවුරු කළ පසු පමණක් සම්බන්ධතා විස්තර බෙදාගැනීම ආරක්ෂිතව විවෘත කරමු.");
+  toast("සම්බන්ධ වීමේ විස්තර booking තහවුරු වූ පසු පෙන්වනු ලැබේ.");
 }
 
 async function bookProvider(jobId, providerId) {
