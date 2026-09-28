@@ -2969,9 +2969,7 @@ syncEngagementUI();
 // ---- Booking, availability, contact reveal ----
 const bookingCtx = { jobId: null, providerUid: null, amount: 0 };
 const PAYMENT_NOTES = {
-  cash_on_completion: "වැඩ අවසන් වූ පසු සේවා සපයන්නාට කෙලින්ම මුදලින් ගෙවන්න.",
-  deposit_plus_cash: "Online ගෙවීම් සක්‍රීය වූ පසු කුඩා අත්තිකාරමක් දැන් ගෙවා ඉතිරිය මුදලින් ගෙවිය හැක.",
-  online_prepay: "Online ගෙවීම් සක්‍රීය වූ පසු සම්පූර්ණ මුදල දැන් ගෙවිය හැක."
+  cash_on_completion: "වැඩ අවසන් වූ පසු සේවා සපයන්නාට මුදලින් ගෙවන්න."
 };
 const BOOKING_STATUS_LABEL = { requested: "ඉල්ලා ඇත", confirmed: "තහවුරුයි", completed: "අවසන්", declined: "ප්‍රතික්ෂේපයි", cancelled: "අවලංගුයි", in_progress: "සිදුවෙමින්" };
 const PAYMENT_LABEL = { cash_on_completion: "අවසානයේ මුදලින්", deposit_plus_cash: "අත්තිකාරම + මුදල", online_prepay: "Online" };
