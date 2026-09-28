@@ -2656,29 +2656,60 @@ on("#accountToggle", "click", () => {
   panel.hidden = !panel.hidden;
 });
 
-async function runAccountAction(action) {
+function showCodeStep(waiting) {
+  $("#accountCodeField").hidden = !waiting;
+  $("#sendCodeButton").hidden = waiting;
+  $("#verifyButton").hidden = !waiting;
+  if (waiting) $("#accountCode").focus();
+}
+
+// Step 1: email a one-time code.
+on("#accountForm", "submit", async (event) => {
+  event.preventDefault();
   const backend = window.PodiBackend;
   if (!backend?.isConfigured()) { toast("පළමුව Google backend config එකතු කරන්න."); return; }
   const email = $("#accountEmail").value.trim();
-  const password = $("#accountPassword").value;
+  if (!email) { toast("Email එකක් ඇතුළත් කරන්න."); return; }
+  const button = $("#sendCodeButton");
+  button.disabled = true;
   try {
-    await action(backend, email, password);
+    await backend.requestOtp(email);
+    showCodeStep(true);
+    toast("කේතය email එකට එවා ඇත. Inbox එක බලන්න.");
   } catch (error) {
-    toast(error.message || "Account action failed.");
+    toast(error.message || "කේතය එවීම අසාර්ථකයි.");
+  } finally {
+    button.disabled = false;
   }
-}
-
-on("#accountForm", "submit", async (event) => {
-  event.preventDefault();
-  await runAccountAction((backend, email, password) => backend.login(email, password));
 });
 
-on("#registerButton", "click", async () => {
-  await runAccountAction((backend, email, password) => backend.register(email, password));
+// Step 2: verify the code to sign in.
+on("#verifyButton", "click", async () => {
+  const backend = window.PodiBackend;
+  if (!backend?.isConfigured()) return;
+  const email = $("#accountEmail").value.trim();
+  const code = $("#accountCode").value.trim();
+  if (!/^[0-9]{6}$/.test(code)) { toast("6-ඉලක්කම් කේතය ඇතුළත් කරන්න."); return; }
+  const button = $("#verifyButton");
+  button.disabled = true;
+  try {
+    await backend.verifyOtp(email, code);
+    showCodeStep(false);
+    $("#accountCode").value = "";
+    toast("ඇතුළු වීම සාර්ථකයි.");
+  } catch (error) {
+    toast(error.message || "ඇතුළු වීම අසාර්ථකයි.");
+  } finally {
+    button.disabled = false;
+  }
 });
 
-on("#logoutButton", "click", async () => {
-  await runAccountAction((backend) => backend.logout());
+on("#logoutButton", "click", () => {
+  const backend = window.PodiBackend;
+  if (!backend?.isConfigured()) return;
+  backend.logout();
+  showCodeStep(false);
+  toast("ඔබ ඉවත් විය.");
 });
 
 function initializeBackendStatus() {
@@ -2695,9 +2726,7 @@ function initializeBackendStatus() {
     $("#providerSubmit").disabled = true;
     $("#providerDocs").disabled = true;
     $("#accountEmail").disabled = true;
-    $("#accountPassword").disabled = true;
-    $("#loginButton").disabled = true;
-    $("#registerButton").disabled = true;
+    $("#sendCodeButton").disabled = true;
     $("#adminTab").textContent = "Demo Admin";
     $("#accountToggle").hidden = true;
     return;
@@ -2710,18 +2739,16 @@ function initializeBackendStatus() {
   $("#providerSubmit").disabled = false;
   $("#providerDocs").disabled = false;
   $("#accountEmail").disabled = false;
-  $("#accountPassword").disabled = false;
-  $("#loginButton").disabled = false;
-  $("#registerButton").disabled = false;
+  $("#sendCodeButton").disabled = false;
   $("#adminTab").hidden = true;
   $("#accountToggle").hidden = false;
   backend.onAuthChange(async (user) => {
-    accountStatus.textContent = user ? `Login: ${user.email || user.uid}` : "Login කර ඔබේ profile එක secure ලෙස save කරන්න.";
-    $("#loginButton").hidden = Boolean(user);
-    $("#registerButton").hidden = Boolean(user);
+    accountStatus.textContent = user ? `ඇතුළු වී ඇත: ${user.email}` : "Email කේතයෙන් ඇතුළු වී ඔබේ profile එක secure ලෙස save කරන්න.";
+    $("#sendCodeButton").hidden = Boolean(user);
+    $("#verifyButton").hidden = true;
+    $("#accountCodeField").hidden = true;
     $("#logoutButton").hidden = !user;
     $("#accountEmail").disabled = Boolean(user);
-    $("#accountPassword").disabled = Boolean(user);
     if (user) {
       try {
         const { user: saved } = await backend.getMe();

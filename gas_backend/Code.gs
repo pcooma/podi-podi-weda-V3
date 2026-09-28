@@ -1,17 +1,18 @@
 /**
  * Podi Podi Weda — Google Drive-first Apps Script backend.
  *
- * Authentication: Firebase email/password. Apps Script verifies Firebase ID
- * tokens with Google's Identity Toolkit API. Passwords are never stored here.
+ * Authentication: passwordless email one-time-code (OTP). A code is emailed via
+ * MailApp; verifying it mints an HMAC-signed session token. No Firebase, and no
+ * passwords are ever stored.
  *
  * Required Script Properties:
- *   FIREBASE_WEB_API_KEY
- *   ADMIN_KEY
- * Optional overrides (defaults point to the owner's prepared Drive structure):
+ *   ADMIN_KEY            (also used to sign sessions/OTP unless SESSION_SECRET is set)
+ * Optional Script Properties:
+ *   SESSION_SECRET       (dedicated signing key; falls back to ADMIN_KEY)
  *   ROOT_FOLDER_ID, USERS_FOLDER_ID, DB_SPREADSHEET_ID, MAX_UPLOAD_BYTES
  */
 
-const BUILD = '2026-09-28-drive-v1';
+const BUILD = '2026-09-28-drive-v2-otp';
 const DEFAULTS = Object.freeze({
   ROOT_FOLDER_ID: '1zwnXP1BQJudpeQSGpUPOob5GpEUL3mH5',
   USERS_FOLDER_ID: '193a7fFJaV9QfzK5QZj9jQ95U1OQ_-oVk',
@@ -72,8 +73,10 @@ function doPost(e) {
       requireAdmin_(request.adminKey);
       return json_({ok: true, data: setProviderStatus_(request.payload || {})});
     }
+    if (action === 'request_otp') return json_({ok: true, data: requestOtp_(request.payload || {})});
+    if (action === 'verify_otp') return json_({ok: true, data: verifyOtp_(request.payload || {})});
 
-    const identity = verifyFirebaseToken_(request.idToken);
+    const identity = verifySession_(request.sessionToken);
     const payload = request.payload || {};
     let result;
     switch (action) {
@@ -301,18 +304,71 @@ function setProviderStatus_(input) {
   return {userUid: userUid, status: status};
 }
 
-function verifyFirebaseToken_(idToken) {
-  if (!idToken) throw new Error('Authentication required.');
-  const key = setting_('FIREBASE_WEB_API_KEY');
-  const response = UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + encodeURIComponent(key), {
-    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-    payload: JSON.stringify({idToken: idToken})
+// ---- Email one-time-code (OTP) authentication ----------------------------
+// No Firebase and no stored passwords. A 6-digit code is emailed to the user;
+// verifying it proves email ownership and mints an HMAC-signed session token
+// that the browser sends on every authenticated request.
+
+function normEmail_(value) { return clean_(value, 150).toLowerCase(); }
+
+function sessionSecret_() {
+  return PropertiesService.getScriptProperties().getProperty('SESSION_SECRET') || setting_('ADMIN_KEY');
+}
+
+function otpHash_(code) {
+  return Utilities.base64Encode(Utilities.computeHmacSha256Signature(String(code), sessionSecret_()));
+}
+
+function requestOtp_(input) {
+  const email = normEmail_(input.email);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Enter a valid email address.');
+  const cache = CacheService.getScriptCache();
+  if (cache.get('otp_rl_' + email)) throw new Error('Please wait a minute before requesting another code.');
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  cache.put('otp_' + email, JSON.stringify({hash: otpHash_(code), attempts: 0}), 600);
+  cache.put('otp_rl_' + email, '1', 60);
+  MailApp.sendEmail({
+    to: email,
+    subject: 'Podi Podi Weda — your verification code',
+    body: 'Your Podi Podi Weda verification code is ' + code + '.\n\nIt expires in 10 minutes. If you did not request it, ignore this email.'
   });
-  if (response.getResponseCode() !== 200) throw new Error('Invalid or expired login.');
-  const body = JSON.parse(response.getContentText());
-  const user = body.users && body.users[0];
-  if (!user || !user.localId) throw new Error('Invalid login.');
-  return {localId: user.localId, email: String(user.email || '').toLowerCase(), emailVerified: user.emailVerified === true};
+  audit_(email, 'auth.otp_request', 'auth', email, {});
+  return {ok: true};
+}
+
+function verifyOtp_(input) {
+  const email = normEmail_(input.email);
+  const code = clean_(input.code, 6);
+  const cache = CacheService.getScriptCache();
+  const raw = cache.get('otp_' + email);
+  if (!raw) throw new Error('Code expired. Please request a new one.');
+  const record = JSON.parse(raw);
+  if (record.attempts >= 5) { cache.remove('otp_' + email); throw new Error('Too many attempts. Request a new code.'); }
+  if (!secureEqual_(otpHash_(code), record.hash)) {
+    record.attempts += 1;
+    cache.put('otp_' + email, JSON.stringify(record), 600);
+    throw new Error('Incorrect code. Please try again.');
+  }
+  cache.remove('otp_' + email);
+  audit_(email, 'auth.otp_verify', 'auth', email, {});
+  return {sessionToken: signSession_(email, 30 * 24 * 3600), email: email};
+}
+
+function signSession_(email, ttlSeconds) {
+  const payload = Utilities.base64EncodeWebSafe(JSON.stringify({sub: normEmail_(email), exp: Date.now() + ttlSeconds * 1000}));
+  const sig = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(payload, sessionSecret_()));
+  return payload + '.' + sig;
+}
+
+function verifySession_(token) {
+  if (!token) throw new Error('Authentication required.');
+  const parts = String(token).split('.');
+  if (parts.length !== 2) throw new Error('Invalid session. Please sign in again.');
+  const expected = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(parts[0], sessionSecret_()));
+  if (!secureEqual_(parts[1], expected)) throw new Error('Invalid session. Please sign in again.');
+  const payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString());
+  if (!payload.exp || payload.exp < Date.now()) throw new Error('Session expired. Please sign in again.');
+  return {localId: payload.sub, email: payload.sub, emailVerified: true};
 }
 
 function requireVerifiedEmail_(identity) {

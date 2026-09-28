@@ -52,21 +52,21 @@
         <section class="account-panel" id="accountPanel" hidden aria-label="Account access">
           <div>
             <p class="eyebrow">ආරක්ෂිත ගිණුම</p>
-            <h2>Login / Register</h2>
-            <p id="accountStatus">Google backend configuration එකතු කළ පසු secure accounts ක්‍රියාත්මක වේ.</p>
+            <h2>Email එකෙන් ඇතුළු වන්න</h2>
+            <p id="accountStatus">ඔබේ email එකට එවන 6-ඉලක්කම් කේතය ඇතුළත් කර ඇතුළු වන්න. මුරපදයක් අවශ්‍ය නැහැ.</p>
           </div>
           <form id="accountForm" class="account-form">
             <label>
               <span>Email</span>
               <input id="accountEmail" type="email" autocomplete="email" required disabled>
             </label>
-            <label>
-              <span>Password</span>
-              <input id="accountPassword" type="password" minlength="8" autocomplete="current-password" required disabled>
+            <label id="accountCodeField" hidden>
+              <span>එවන ලද කේතය (6 ඉලක්කම්)</span>
+              <input id="accountCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="123456">
             </label>
             <div class="row-actions">
-              <button class="primary-action" id="loginButton" type="submit" disabled>Login</button>
-              <button class="ghost-action" id="registerButton" type="button" disabled>Register</button>
+              <button class="primary-action" id="sendCodeButton" type="submit" disabled>කේතය එවන්න</button>
+              <button class="primary-action" id="verifyButton" type="button" hidden>ඇතුළු වන්න</button>
               <button class="ghost-action" id="logoutButton" type="button" hidden>Logout</button>
             </div>
           </form>
@@ -424,7 +424,7 @@
 
     <script>window.PODI_PODI_CONFIG = window.PODI_PODI_CONFIG || null;</script>
     <script src="config.js"></script>
-    <script src="app.js?v=27"></script>
-    <script type="module" src="backend-client.js?v=2"></script>
+    <script src="app.js?v=28"></script>
+    <script type="module" src="backend-client.js?v=3"></script>
   </body>
 </html>

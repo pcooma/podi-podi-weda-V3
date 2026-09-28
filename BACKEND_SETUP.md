@@ -2,7 +2,7 @@
 
 ## Current status
 
-The production pilot uses Firebase Authentication for sign-in and a Google Apps Script web app for the API. User records are stored as private per-user folders in the supplied Google Drive root; the master Google Sheet stores searchable indexes, jobs, bookings, documents, and audit events.
+The production pilot uses passwordless **email one-time-code (OTP)** sign-in and a Google Apps Script web app for the API — no Firebase. User records are stored as private per-user folders in the supplied Google Drive root; the master Google Sheet stores searchable indexes, jobs, bookings, documents, and audit events.
 
 The older `api/` Cloud Run foundation remains in the repository as a future migration option. It is not required for the Drive-first pilot and must not be deployed alongside it without an explicit migration plan.
 
