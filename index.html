@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="si">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f5c542">
+    <title>පොඩි පොඩි වැඩ | සේවා ලබාගන්න</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="styles.css?v=20">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="rail" aria-label="Primary">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">👷</span>
+          <div>
+            <strong>පොඩි පොඩි වැඩ</strong>
+            <small>වැඩක් හොයාගන්න | වැඩක් කරගන්න</small>
+          </div>
+        </div>
+        <nav class="role-tabs" aria-label="Role views">
+          <button class="role-tab active" data-view="client" type="button"><span>🔎</span> වැඩක් කරගන්න</button>
+          <button class="role-tab" data-view="provider" type="button"><span>🧰</span> වැඩක් කරන්න</button>
+          <button class="role-tab" data-view="admin" type="button">Admin</button>
+        </nav>
+        <div class="system-card">
+          <span class="eyebrow">ඉතා සරලයි</span>
+          <p>ඔබේ දුරකථන අංකය, සේවාව, ප්‍රදේශය සහ දවසක ගාස්තුව ඇතුළත් කරන්න.</p>
+        </div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Sri Lanka workforce marketplace</p>
+            <h1>වැඩට ගැළපෙන මිනිස්සු. මිනිස්සුන්ට ගැළපෙන වැඩ.</h1>
+          </div>
+          <div class="top-actions">
+            <button class="icon-btn" id="resetDemo" type="button" aria-label="Reset demo data" title="Reset demo data">
+              <span aria-hidden="true">↺</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="landing-band" aria-label="Main entry points">
+          <div class="landing-copy">
+            <span class="helmet-symbol" aria-hidden="true">👷</span>
+            <div>
+              <p class="eyebrow">පොඩි වැඩේ ඉඳන් professional සේවාව දක්වා</p>
+              <h2>ඔබට අවශ්‍ය සේවාව තෝරන්න. සුදුසුම අය එක්ක අපි ඔබව සම්බන්ධ කරන්නම්.</h2>
+              <p>බාස්වරු, මේසන්, පිරිසිදු කරන්නන්, වඩු, විදුලි කාර්මික, QS, ඉංජිනේරු, ගුරුවරු සහ තවත් බොහෝ සේවාවන්.</p>
+            </div>
+          </div>
+          <div class="entry-cards">
+            <button class="entry-card" type="button" data-jump-view="client">
+              <span class="entry-icon" aria-hidden="true">🔎</span>
+              <strong>මට සේවාවක් අවශ්‍යයි</strong>
+              <small>අවශ්‍ය සේවාව තෝරා සුදුසුම අය සොයාගන්න</small>
+            </button>
+            <button class="entry-card" type="button" data-jump-view="provider">
+              <span class="entry-icon" aria-hidden="true">🧰</span>
+              <strong>මම සේවාවක් සපයනවා</strong>
+              <small>ඔබේ වෘත්තිය, පළපුරුද්ද සහ ගාස්තු ඇතුළත් කර ලියාපදිංචි වන්න</small>
+            </button>
+          </div>
+          <div class="role-symbols" aria-label="Service examples">
+            <span title="Mason">🧱 මේසන් බාස්</span>
+            <span title="Plumber">🚰 ජලනල කාර්මික</span>
+            <span title="Cleaner">🧹 Cleaner</span>
+            <span title="Electrician">⚡ විදුලි කාර්මික</span>
+            <span title="Professional">📐 QS / Engineer</span>
+            <span title="Teacher">📚 Teacher</span>
+            <span title="Printing">🖨️ Printing</span>
+            <span title="Graphic Design">🎨 Graphic Design</span>
+            <span title="Typing">⌨️ Type setting</span>
+            <span title="Digital">💻 Web / Marketing</span>
+            <span title="Events">🎪 Events</span>
+            <span title="Repairs">🛠️ Computer / Mobile repair</span>
+          </div>
+        </section>
+
+        <section id="client-view" class="view active" aria-label="Client workspace">
+          <div class="workspace-grid">
+            <section class="panel job-panel">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">ඔබේ අවශ්‍යතාවය</p>
+                  <h2>ඔබට අවශ්‍ය සේවාව තෝරන්න</h2>
+                </div>
+                <span class="status-pill">නොමිලේ</span>
+              </div>
+              <form id="jobForm" class="form-stack">
+                <label>
+                    <span>ඔබට අවශ්‍ය සේවා වර්ගය</span>
+                    <select id="jobCategory"></select>
+                  </label>
+                <div id="jobGuidance" class="role-guidance"></div>
+                <fieldset class="chip-field" id="jobSkillField">
+                  <legend>අදාළ විශේෂිත සේවාවන් තෝරන්න</legend>
+                  <div id="jobSkillChips" class="chip-options"></div>
+                </fieldset>
+                <label>
+                  <span id="jobDescriptionLabel">වැඩිදුර විස්තර</span>
+                  <textarea id="jobDescription" rows="5">නාන කාමරයේ වතුර බටයක කාන්දුවක් තියෙනවා. අද හෝ හෙට ප්ලම්බර් කෙනෙක් (ජලනල කාර්මිකයෙක්) අවශ්‍යයි.</textarea>
+                </label>
+                <div class="two-col">
+                  <label>
+                    <span>ප්‍රදේශය</span>
+                    <select id="jobDistrict">
+                      <option value="Colombo">කොළඹ</option>
+                      <option value="Gampaha">ගම්පහ</option>
+                      <option value="Kalutara">කළුතර</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>කොතරම් ඉක්මනට අවශ්‍යද?</span>
+                    <select id="jobUrgency">
+                      <option value="today">අද / හෙට</option>
+                      <option value="this_week">මේ සතිය ඇතුළත</option>
+                      <option value="scheduled">වෙනත් දිනයක</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="two-col">
+                  <label>
+                    <span>Client දෙන මිල / අපේක්ෂිත වියදම (රු.)</span>
+                    <input id="jobBudget" type="number" min="1000" step="500" value="8000">
+                  </label>
+                  <label>
+                    <span>සේවාව අවශ්‍ය දිනය</span>
+                    <input id="jobDate" type="date">
+                  </label>
+                </div>
+                <div class="two-col">
+                  <label>
+                    <span>වැඩේ ප්‍රමාණය</span>
+                    <select id="jobSize">
+                      <option value="small">පොඩි වැඩක්</option>
+                      <option value="medium">සාමාන්‍ය වැඩක්</option>
+                      <option value="large">ලොකු වැඩක් / Project එකක්</option>
+                      <option value="ongoing">දිගටම තියෙන වැඩක්</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>අවශ්‍ය සේවක ගණන</span>
+                    <input id="jobWorkersNeeded" type="number" min="1" max="20" step="1" value="1">
+                  </label>
+                </div>
+                <div class="two-col">
+                  <label>
+                    <span>බඩු / උපකරණ සපයන්නේ කවුද?</span>
+                    <select id="jobMaterials">
+                      <option value="client_materials">මම බඩු දෙන්නම් - වැඩකරුවන් පමණක් ඕන</option>
+                      <option value="worker_tools">බඩු මගෙන්, tools සේවා සපයන්නාගෙන්</option>
+                      <option value="worker_materials">බඩුත් සේවා සපයන්නා quote කර ගේන්න</option>
+                      <option value="both">බඩු කොටසක් මගෙන්, කොටසක් සේවා සපයන්නාගෙන්</option>
+                      <option value="unknown">තවම දන්නේ නැහැ / උපදෙස් ඕන</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>ඇතුල්වීම / accessibility</span>
+                    <input id="jobAccessInfo" placeholder="උදා: lunch hour පමණයි, parking නැහැ, security pass ඕන">
+                  </label>
+                </div>
+                <fieldset class="chip-field">
+                  <legend>ඔබට වැඩ කරන්න ඉඩ තියෙන වේලාවන්</legend>
+                  <div class="chip-options time-options">
+                    <label><input type="checkbox" name="jobSlot" value="morning" checked> උදේ</label>
+                    <label><input type="checkbox" name="jobSlot" value="lunch"> Lunch hour</label>
+                    <label><input type="checkbox" name="jobSlot" value="evening"> සවස</label>
+                    <label><input type="checkbox" name="jobSlot" value="night"> රාත්‍රී</label>
+                  </div>
+                </fieldset>
+                <label>
+                  <span>ඡායාරූප / ලේඛන</span>
+                  <input id="jobPhotos" type="file" multiple accept="image/*,.pdf">
+                </label>
+                <button class="primary-action" type="submit">ගැළපෙනම අය සොයන්න</button>
+              </form>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">ඔබේ ඉල්ලීම</p>
+                  <h2>ගැළපෙන ප්‍රතිඵල</h2>
+                </div>
+                <span class="status-pill muted">🔒 සුරක්ෂිතයි</span>
+              </div>
+              <div id="aiPanel" class="ai-panel">
+                <p>ඔබේ ඉල්ලීම යොමු කළ පසු, ඊට ගැළපෙන අයගේ විස්තර මෙහි දිස්වනු ඇත.</p>
+              </div>
+            </section>
+          </div>
+
+          <section class="panel shortlist-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Top 5 deterministic results</p>
+                <h2>අප නිර්දේශ කරන අය</h2>
+              </div>
+              <span id="shortlistCount" class="status-pill">ප්‍රතිඵල 0</span>
+            </div>
+            <div id="shortlist" class="provider-grid empty-state">
+              <p>ඔබට ගැළපෙන අයගේ ලැයිස්තුව මෙහි දිස්වේ.</p>
+            </div>
+          </section>
+
+          <section class="panel timeline-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Current lifecycle</p>
+                <h2>Job state</h2>
+              </div>
+            </div>
+            <ol id="jobTimeline" class="timeline"></ol>
+          </section>
+        </section>
+
+        <section id="provider-view" class="view" aria-label="වැඩ ලබාගන්න ලියාපදිංචිය">
+          <div class="workspace-grid">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">සේවා සපයන්නන් සඳහා</p>
+                  <h2>වැඩක් කරන්න ලියාපදිංචි වන්න</h2>
+                </div>
+                <span class="status-pill">තහවුරු කිරීමෙන් පසු ඇතුළත් කෙරේ</span>
+              </div>
+              <div class="worker-help">
+                <strong>ලියාපදිංචිය සඳහා අවශ්‍ය තොරතුරු</strong>
+                <span>නම සහ දුරකථන අංකය</span>
+                <span>ඔබේ වෘත්තිය</span>
+                <span>වැඩ කරන ප්‍රදේශය</span>
+                <span>අයකරන ගාස්තුව සහ පළපුරුද්ද</span>
+              </div>
+              <form id="providerForm" class="form-stack">
+                <div class="two-col">
+                  <label>
+                    <span>ඔබේ නම</span>
+                    <input id="providerName" required value="" placeholder="උදා: සුනිල්">
+                  </label>
+                  <label>
+                    <span>දුරකථන අංකය</span>
+                    <input id="providerPhone" required value="" inputmode="tel" placeholder="07XXXXXXXX">
+                  </label>
+                </div>
+                <div class="two-col">
+                  <label>
+                    <span>ඔබේ ප්‍රධාන වෘත්තිය හෝ සේවාව</span>
+                    <select id="providerCategory"></select>
+                  </label>
+                  <label>
+                    <span>ඔබට වැඩ කළ හැකි ප්‍රදේශය</span>
+                    <select id="providerDistrict">
+                      <option value="Colombo">කොළඹ</option>
+                      <option value="Gampaha">ගම්පහ</option>
+                      <option value="Kalutara">කළුතර</option>
+                    </select>
+                  </label>
+                </div>
+                <div id="roleGuidance" class="role-guidance"></div>
+                <fieldset class="chip-field" id="skillField">
+                  <legend>ඔබට කළ හැකි විශේෂිත වැඩ</legend>
+                  <div id="providerSkillChips" class="chip-options"></div>
+                </fieldset>
+                <div class="two-col">
+                  <label>
+                    <span id="rateLabel">දවසක ගාස්තුව (රු.)</span>
+                    <input id="providerRate" type="number" min="0" step="500" value="" placeholder="උදා: 3500">
+                  </label>
+                  <label>
+                    <span>මේ ක්ෂේත්‍රයේ පළපුරුද්ද (අවුරුදු ගණන)</span>
+                    <input id="providerExperience" type="number" min="0" max="40" value="" placeholder="උදා: 3">
+                  </label>
+                </div>
+                <fieldset class="chip-field pricing-mode-field">
+                  <legend>ඔබේ ගාස්තුව දාන්නේ කොහොමද?</legend>
+                  <div class="pricing-mode-options">
+                    <label>
+                      <input type="radio" name="pricingMode" value="single" checked>
+                      <strong>එකම ගාස්තුව</strong>
+                      <span>දවසට / වැඩකට එක මිලක්. බොහෝ කම්කරු සහ පොඩි වැඩ සඳහා පහසුම ක්‍රමය.</span>
+                    </label>
+                    <label>
+                      <input type="radio" name="pricingMode" value="by_slot">
+                      <strong>වේලාව අනුව වෙනස් මිල</strong>
+                      <span>උදේ, lunch, සවස, රාත්‍රී වෙන වෙනම ගාස්තු දාන්න.</span>
+                    </label>
+                  </div>
+                </fieldset>
+                <fieldset class="chip-field slot-rate-field">
+                  <legend>ඔබට වැඩ කළ හැකි වේලාවන්</legend>
+                  <div class="slot-rate-grid">
+                    <label class="slot-rate-row">
+                      <span><input type="checkbox" name="providerSlot" value="morning" checked> උදේ</span>
+                      <input id="rateMorning" class="slot-rate-input" type="number" min="0" step="500" placeholder="එම ගාස්තුව">
+                    </label>
+                    <label class="slot-rate-row">
+                      <span><input type="checkbox" name="providerSlot" value="lunch"> Lunch hour</span>
+                      <input id="rateLunch" class="slot-rate-input" type="number" min="0" step="500" placeholder="එම ගාස්තුව">
+                    </label>
+                    <label class="slot-rate-row">
+                      <span><input type="checkbox" name="providerSlot" value="evening" checked> සවස</span>
+                      <input id="rateEvening" class="slot-rate-input" type="number" min="0" step="500" placeholder="එම ගාස්තුව">
+                    </label>
+                    <label class="slot-rate-row">
+                      <span><input type="checkbox" name="providerSlot" value="night"> රාත්‍රී</span>
+                      <input id="rateNight" class="slot-rate-input" type="number" min="0" step="500" placeholder="එම ගාස්තුව">
+                    </label>
+                  </div>
+                </fieldset>
+                <div class="two-col">
+                  <label>
+                    <span>ඔබට සැපයිය හැකි දේ</span>
+                    <select id="providerSupply">
+                      <option value="labour_only">ශ්‍රමය පමණයි</option>
+                      <option value="tools">ශ්‍රමය + tools</option>
+                      <option value="materials">ශ්‍රමය + tools + බඩු quote කර ගෙන එන්න පුළුවන්</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>කණ්ඩායමේ සාමාන්‍ය අය ගණන</span>
+                    <input id="providerTeamSize" type="number" min="1" max="20" value="1">
+                  </label>
+                </div>
+                <label>
+                  <span id="evidenceLabel">ඔබේ පළපුරුද්ද සහ වැඩ ගැන කෙටි විස්තරයක්</span>
+                  <textarea id="providerEvidence" rows="3" placeholder="උදා: අවුරුදු 3ක මේසන් බාස් කෙනෙක් විදියට වැඩ කරලා තියෙනවා."></textarea>
+                </label>
+                <label>
+                  <span id="documentLabel">ජාතික හැඳුනුම්පත හෝ ඔබගේ ඡායාරූපයක් (පසුව වුණත් ඇතුළත් කරන්න පුළුවන්)</span>
+                  <input id="providerDocs" type="file" multiple accept="image/*,.pdf">
+                </label>
+                <p class="form-note">ඔබේ ලියාපදිංචිය තහවුරු කළ පසු, ඔබට ගැළපෙන වැඩ SMS හෝ WhatsApp මගින් දැනුම් දෙනු ලැබේ.</p>
+                <button class="primary-action" type="submit">ලියාපදිංචි වන්න</button>
+                <div id="providerStatusMessage" class="success-message" hidden></div>
+              </form>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">ඔබේ ප්‍රොෆයිල් එක</p>
+                  <h2>ගාස්තු සහ වැඩ කළ හැකි දින</h2>
+                </div>
+              </div>
+              <div class="calendar-strip" id="calendarStrip"></div>
+              <div class="rate-preview" id="ratePreview"></div>
+              <div class="profile-rate-manager" id="profileRateManager"></div>
+            </section>
+          </div>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">ඔබට ලැබෙන වැඩ</p>
+                <h2>SMS සහ WhatsApp පණිවිඩ</h2>
+              </div>
+            </div>
+            <div id="leadQueue" class="lead-list"></div>
+          </section>
+        </section>
+
+        <section id="admin-view" class="view" aria-label="Admin workspace">
+          <div class="admin-grid">
+            <section class="panel kpi-panel">
+              <p class="eyebrow">Survival metrics</p>
+              <div id="kpis" class="kpi-grid"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">Verification queue</p>
+                  <h2>Document review</h2>
+                </div>
+              </div>
+              <div id="verificationQueue" class="admin-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">Moderation</p>
+                  <h2>Complaints and audit</h2>
+                </div>
+              </div>
+              <div id="disputeQueue" class="admin-list"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js?v=20"></script>
+  </body>
+</html>
