@@ -1608,6 +1608,10 @@ function isRemoteFriendlyProvider(provider) {
 
 function estimateDistanceKm(provider, job) {
   if (isRemoteFriendlyProvider(provider)) return 0;
+  // Real point-to-point distance when both sides shared GPS.
+  if (Number.isFinite(provider.lat) && Number.isFinite(provider.lng) && Number.isFinite(job.lat) && Number.isFinite(job.lng)) {
+    return Math.round(haversineKm({ lat: job.lat, lng: job.lng }, { lat: provider.lat, lng: provider.lng }) * 10) / 10;
+  }
   if (!job.district || !provider.district) return Number(provider.distanceKm || 0);
   return districtDistanceKm[job.district]?.[provider.district] ?? Number(provider.distanceKm || 0);
 }
@@ -1746,7 +1750,11 @@ function evaluateProvider(provider, job, classification) {
   if (!isRemoteFriendlyProvider(provider) && job.district && provider.district && job.district !== provider.district && provider.radiusKm < 30) reasons.push("ප්‍රදේශය ගැළපෙන්නේ නැහැ");
   if (!hasCalendarFit(provider, job)) reasons.push("තෝරාගත් දිනයේ availability නැහැ");
   if (!hasSlotFit(provider, job)) reasons.push("ඔබ දාපු වේලාවන්ට provider free නැහැ");
-  if (!hasMaterialFit(provider, job)) reasons.push("බඩු/tools සපයන හැකියාව ගැළපෙන්නේ නැහැ");
+  if (!hasMaterialFit(provider, job)) reasons.push("බඩු/උපකරණ සපයන හැකියාව ගැළපෙන්නේ නැහැ");
+  const jobEngagement = job.engagementType || "day";
+  const providerEngagements = provider.engagementTypes || ["quick", "day"];
+  if (!providerEngagements.includes(jobEngagement)) reasons.push("මෙම ආකාරයේ (කාල) වැඩ භාරගන්නේ නැහැ");
+  if (jobEngagement === "full_time" && Number(job.daysPerWeek || 0) > 0 && Number(provider.daysPerWeek || 0) > 0 && Number(provider.daysPerWeek) < Number(job.daysPerWeek)) reasons.push("සතියකට අවශ්‍ය දින ගණනට ලබාගත නොහැක");
   if (workersNeeded > 1 && teamSize < workersNeeded) reasons.push(`අය ${workersNeeded}ක් ඕනේ; ප්‍රොෆයිල් එකේ ඉන්නේ ${teamSize}යි`);
   if (job.budget && !quoteOnly && marketOffer.total > job.budget * 1.35) reasons.push("client දෙන මිලට වඩා provider offer එක වැඩියි");
 
@@ -1851,6 +1859,12 @@ async function createJob(formData) {
     jobSize: classification.jobSize,
     workersNeeded: classification.workersNeeded || Number(formData.workersNeeded || 1),
     photos: formData.photos,
+    engagementType: formData.engagementType || "day",
+    estimatedHours: formData.estimatedHours || 0,
+    durationDays: formData.durationDays || 0,
+    daysPerWeek: formData.daysPerWeek || 0,
+    lat: Number.isFinite(formData.lat) ? formData.lat : null,
+    lng: Number.isFinite(formData.lng) ? formData.lng : null,
     status: "matching",
     classification,
     createdAt: new Date().toISOString()
@@ -1873,10 +1887,16 @@ async function createJob(formData) {
         jobSize: job.jobSize,
         workersNeeded: job.workersNeeded,
         materialsBy: job.materialsBy,
-        accessSlots: job.accessSlots
+        accessSlots: job.accessSlots,
+        engagementType: job.engagementType,
+        estimatedHours: job.estimatedHours,
+        durationDays: job.durationDays,
+        daysPerWeek: job.daysPerWeek,
+        lat: job.lat,
+        lng: job.lng
       });
       job.id = savedJob.id;
-      const providerResult = await backend.searchProviders({category: classification.category.slug, district: job.district, page: 1, pageSize: 50});
+      const providerResult = await backend.searchProviders({category: classification.category.slug, district: job.district, lat: job.lat, lng: job.lng, page: 1, pageSize: 50});
       providerPool = Array.isArray(providerResult) ? providerResult : (providerResult.items || []);
     } catch (error) {
       toast(error.message || "ඉල්ලීම සුරැකීමට නොහැකි විය. නැවත උත්සාහ කරන්න.");
@@ -2430,7 +2450,11 @@ async function addProvider() {
     skills: selectedSkills.length ? selectedSkills : meta.skills.slice(0, 2),
     district: $("#providerDistrict").value,
     distanceKm: 6,
-    radiusKm: 20,
+    radiusKm: Number($("#providerRadius").value || 15),
+    lat: Number($("#providerLat").value) || null,
+    lng: Number($("#providerLng").value) || null,
+    engagementTypes: (() => { const e = $all("input[name='providerEngagement']:checked").map((input) => input.value); return e.length ? e : ["quick", "day"]; })(),
+    daysPerWeek: Number($("#providerDaysPerWeek").value || 0),
     tier: "t0_phone",
     approved: false,
     availability: "available",
@@ -2470,7 +2494,12 @@ async function addProvider() {
         experienceYears: provider.experience,
         rateLkr: provider.rate,
         evidenceSummary: evidence,
-        preferredLanguage: "si"
+        preferredLanguage: "si",
+        lat: provider.lat,
+        lng: provider.lng,
+        serviceRadiusKm: provider.radiusKm,
+        engagementTypes: provider.engagementTypes,
+        daysPerWeek: provider.daysPerWeek
       });
       const documents = [...$("#providerDocs").files];
       const documentType = $("#providerDocumentType").value;
@@ -2624,6 +2653,12 @@ on("#jobForm", "submit", async (event) => {
     accessInfo: $("#jobAccessInfo").value.trim(),
     accessSlots: $all("input[name='jobSlot']:checked").map((input) => input.value),
     photos: 0,
+    engagementType: $("#jobEngagement").value,
+    estimatedHours: Number($("#jobHours").value || 0),
+    durationDays: Number($("#jobDurationDays").value || 0),
+    daysPerWeek: Number($("#jobDaysPerWeek").value || 0),
+    lat: Number($("#jobLat").value) || null,
+    lng: Number($("#jobLng").value) || null,
     structuredInput: {
       mode: jobCategory === "other" ? "custom" : "structured",
       categorySlug: jobCategory,
@@ -2773,6 +2808,15 @@ function initializeBackendStatus() {
         if (saved.evidence_summary) $("#providerEvidence").value = saved.evidence_summary;
         const savedSkills = new Set(saved.skills || []);
         $all("input[name='providerSkill']").forEach((input) => { input.checked = savedSkills.has(input.value); });
+        if (saved.service_radius_km) $("#providerRadius").value = saved.service_radius_km;
+        if (saved.days_per_week) $("#providerDaysPerWeek").value = saved.days_per_week;
+        if (Array.isArray(saved.engagement_types) && saved.engagement_types.length) {
+          const engSet = new Set(saved.engagement_types);
+          $all("input[name='providerEngagement']").forEach((input) => { input.checked = engSet.has(input.value); });
+        }
+        if (Number.isFinite(saved.lat) && Number.isFinite(saved.lng)) {
+          setLocationField($("#providerLat").closest("[data-location]"), saved.lat, saved.lng);
+        }
       } catch (error) {
         toast(error.message || "Saved profile load failed.");
       }
@@ -2812,5 +2856,108 @@ window.addEventListener("appinstalled", () => {
   deferredInstallPrompt = null;
   if (installButton) installButton.hidden = true;
 });
+
+// ---- Location capture: GPS one-tap + Leaflet map-pin fallback ----
+function haversineKm(a, b) {
+  const R = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
+
+function setLocationField(field, lat, lng) {
+  field.querySelector("[data-loc-lat]").value = lat;
+  field.querySelector("[data-loc-lng]").value = lng;
+  const status = field.querySelector("[data-loc-status]");
+  status.textContent = `ස්ථානය තෝරාගත්තා ✓ (${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)})`;
+  status.classList.add("location-set");
+}
+
+let leafletPromise = null;
+function loadLeaflet() {
+  if (leafletPromise) return leafletPromise;
+  leafletPromise = new Promise((resolve, reject) => {
+    const css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+    document.head.appendChild(css);
+    const js = document.createElement("script");
+    js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+    js.onload = () => resolve(window.L);
+    js.onerror = () => reject(new Error("map load failed"));
+    document.head.appendChild(js);
+  });
+  return leafletPromise;
+}
+
+const mapState = { map: null, marker: null, field: null, latlng: null };
+async function openMapPicker(field) {
+  mapState.field = field;
+  mapState.latlng = null;
+  const modal = $("#mapModal");
+  modal.hidden = false;
+  $("#mapConfirm").disabled = true;
+  let L;
+  try { L = await loadLeaflet(); } catch (error) { toast("සිතියම load කරන්න බැරි වුණා."); modal.hidden = true; return; }
+  if (!mapState.map) {
+    mapState.map = L.map("mapCanvas").setView([6.9271, 79.8612], 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap", maxZoom: 19 }).addTo(mapState.map);
+    mapState.map.on("click", (event) => {
+      mapState.latlng = event.latlng;
+      if (mapState.marker) mapState.marker.setLatLng(event.latlng);
+      else mapState.marker = L.marker(event.latlng).addTo(mapState.map);
+      $("#mapConfirm").disabled = false;
+    });
+  }
+  const curLat = Number(field.querySelector("[data-loc-lat]").value);
+  const curLng = Number(field.querySelector("[data-loc-lng]").value);
+  setTimeout(() => {
+    mapState.map.invalidateSize();
+    if (curLat && curLng) {
+      mapState.map.setView([curLat, curLng], 15);
+      mapState.latlng = { lat: curLat, lng: curLng };
+      if (mapState.marker) mapState.marker.setLatLng([curLat, curLng]);
+      else mapState.marker = L.marker([curLat, curLng]).addTo(mapState.map);
+      $("#mapConfirm").disabled = false;
+    }
+  }, 120);
+}
+
+document.addEventListener("click", (event) => {
+  const gpsBtn = event.target.closest("[data-loc-gps]");
+  if (gpsBtn) {
+    const field = gpsBtn.closest("[data-location]");
+    if (!navigator.geolocation) { toast("මෙම browser එකේ location නැහැ. සිතියමෙන් තෝරන්න."); return; }
+    const status = field.querySelector("[data-loc-status]");
+    status.textContent = "ස්ථානය සොයමින්...";
+    gpsBtn.disabled = true;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setLocationField(field, pos.coords.latitude, pos.coords.longitude); gpsBtn.disabled = false; },
+      () => { status.textContent = "Location දෙන්න බැරි වුණා. සිතියමෙන් තෝරන්න."; gpsBtn.disabled = false; },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+    return;
+  }
+  const mapBtn = event.target.closest("[data-loc-map]");
+  if (mapBtn) openMapPicker(mapBtn.closest("[data-location]"));
+});
+
+on("#mapClose", "click", () => { $("#mapModal").hidden = true; });
+on("#mapConfirm", "click", () => {
+  if (mapState.latlng && mapState.field) setLocationField(mapState.field, mapState.latlng.lat, mapState.latlng.lng);
+  $("#mapModal").hidden = true;
+});
+
+function syncEngagementUI() {
+  const value = $("#jobEngagement")?.value;
+  if (!value) return;
+  $("#hoursField").hidden = value !== "quick";
+  $("#durationField").hidden = value !== "multi_day";
+  $("#daysPerWeekField").hidden = value !== "full_time";
+}
+on("#jobEngagement", "change", syncEngagementUI);
+syncEngagementUI();
 
 render();

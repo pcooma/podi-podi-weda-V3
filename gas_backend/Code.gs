@@ -12,7 +12,7 @@
  *   ROOT_FOLDER_ID, USERS_FOLDER_ID, DB_SPREADSHEET_ID, MAX_UPLOAD_BYTES
  */
 
-const BUILD = '2026-09-28-drive-v3-otp-textsafe';
+const BUILD = '2026-09-28-drive-v4-geo-engagement';
 const DEFAULTS = Object.freeze({
   ROOT_FOLDER_ID: '1zwnXP1BQJudpeQSGpUPOob5GpEUL3mH5',
   USERS_FOLDER_ID: '193a7fFJaV9QfzK5QZj9jQ95U1OQ_-oVk',
@@ -29,9 +29,9 @@ const TABS = Object.freeze({
 });
 
 const HEADERS = Object.freeze({
-  DB_Users: ['user_uid','firebase_uid','email','username','display_name','roles_json','status','district','category','skills_json','phone','experience_years','rate_lkr','profile_folder_id','profile_json_file_id','created_at','updated_at'],
+  DB_Users: ['user_uid','firebase_uid','email','username','display_name','roles_json','status','district','category','skills_json','phone','experience_years','rate_lkr','profile_folder_id','profile_json_file_id','created_at','updated_at','lat','lng','service_radius_km','engagement_types_json','days_per_week'],
   DB_Documents: ['document_id','user_uid','document_type','original_filename','mime_type','size_bytes','drive_file_id','status','created_at'],
-  DB_Jobs: ['job_id','client_uid','category','description','district','urgency','budget_lkr','requested_date','job_size','workers_needed','materials_by','access_slots_json','status','created_at','updated_at'],
+  DB_Jobs: ['job_id','client_uid','category','description','district','urgency','budget_lkr','requested_date','job_size','workers_needed','materials_by','access_slots_json','status','created_at','updated_at','lat','lng','engagement_type','estimated_hours','duration_days','days_per_week'],
   DB_Bookings: ['booking_id','job_id','client_uid','provider_uid','status','agreed_amount_lkr','created_at','updated_at'],
   DB_Audit: ['audit_id','actor_uid','action','target_type','target_id','metadata_json','created_at']
 });
@@ -154,6 +154,11 @@ function saveProfile_(identity, input) {
       rate_lkr: profile.rateLkr,
       evidence_summary: profile.evidenceSummary,
       preferred_language: profile.preferredLanguage,
+      lat: profile.lat,
+      lng: profile.lng,
+      service_radius_km: profile.serviceRadiusKm,
+      engagement_types: profile.engagementTypes,
+      days_per_week: profile.daysPerWeek,
       created_at: existing ? existing.created_at : now,
       updated_at: now
     };
@@ -175,7 +180,12 @@ function saveProfile_(identity, input) {
       profile_folder_id: folderInfo.userFolder.getId(),
       profile_json_file_id: profileFile.getId(),
       created_at: record.created_at,
-      updated_at: now
+      updated_at: now,
+      lat: profile.lat,
+      lng: profile.lng,
+      service_radius_km: profile.serviceRadiusKm,
+      engagement_types_json: JSON.stringify(profile.engagementTypes),
+      days_per_week: profile.daysPerWeek
     };
     upsert_(usersSheet, 'firebase_uid', identity.localId, sheetRecord);
     audit_(userUid, 'profile.upsert', 'user', userUid, {status: record.status});
@@ -251,7 +261,13 @@ function submitJob_(identity, input) {
     access_slots_json: JSON.stringify(array_(input.accessSlots, 10, 30)),
     status: 'matching',
     created_at: now,
-    updated_at: now
+    updated_at: now,
+    lat: geoCoord_(input.lat, 90),
+    lng: geoCoord_(input.lng, 180),
+    engagement_type: ['quick','day','multi_day','full_time'].indexOf(clean_(input.engagementType, 20)) >= 0 ? clean_(input.engagementType, 20) : 'day',
+    estimated_hours: input.estimatedHours == null ? '' : number_(input.estimatedHours, 0, 24),
+    duration_days: input.durationDays == null ? '' : number_(input.durationDays, 0, 365),
+    days_per_week: input.daysPerWeek == null ? '' : number_(input.daysPerWeek, 0, 7)
   };
   if (!record.category || !record.district) throw new Error('Category and district are required.');
   appendObject_(sheet_(TABS.JOBS), record);
@@ -263,10 +279,13 @@ function searchProviders_(identity, input) {
   requireVerifiedEmail_(identity);
   const category = clean_(input.category, 80);
   const district = clean_(input.district, 80);
+  // When the client shares GPS, search by category across districts and let the
+  // client rank by real distance + radius. Without GPS, fall back to district.
+  const hasGeo = geoCoord_(input.lat, 90) !== '' && geoCoord_(input.lng, 180) !== '';
   const page = Math.max(1, Number(input.page || 1));
   const pageSize = Math.min(50, Math.max(1, Number(input.pageSize || 20)));
   const filtered = approvedProviders_().filter(function(row) {
-    return (!category || row.category === category) && (!district || row.district === district);
+    return (!category || row.category === category) && (hasGeo || !district || row.district === district);
   });
   return {
     items: filtered.slice((page - 1) * pageSize, page * pageSize).map(publicProvider_),
@@ -397,12 +416,26 @@ function validateProfile_(input) {
   const district = clean_(input.district, 80);
   const category = clean_(input.category, 80);
   if (displayName.length < 2 || !district || !category) throw new Error('Name, district and category are required.');
+  const engagementTypes = array_(input.engagementTypes, 4, 20)
+    .filter(function(t) { return ['quick','day','multi_day','full_time'].indexOf(t) >= 0; });
   return {
     username: username, phone: phone, displayName: displayName, district: district, category: category,
     skills: array_(input.skills, 30, 100), experienceYears: number_(input.experienceYears, 0, 80),
     rateLkr: number_(input.rateLkr, 0, 100000000), evidenceSummary: clean_(input.evidenceSummary, 2000),
-    preferredLanguage: ['si','ta','en'].indexOf(input.preferredLanguage) >= 0 ? input.preferredLanguage : 'si'
+    preferredLanguage: ['si','ta','en'].indexOf(input.preferredLanguage) >= 0 ? input.preferredLanguage : 'si',
+    lat: geoCoord_(input.lat, 90), lng: geoCoord_(input.lng, 180),
+    serviceRadiusKm: input.serviceRadiusKm == null ? 15 : number_(input.serviceRadiusKm, 0, 500),
+    engagementTypes: engagementTypes.length ? engagementTypes : ['quick','day'],
+    daysPerWeek: input.daysPerWeek == null ? 0 : number_(input.daysPerWeek, 0, 7)
   };
+}
+
+// Returns a valid coordinate number, or '' when absent/out of range.
+function geoCoord_(value, max) {
+  if (value === '' || value == null) return '';
+  const n = Number(value);
+  if (!isFinite(n) || Math.abs(n) > max || n === 0) return '';
+  return n;
 }
 
 function ensureUserFolder_(firebaseUid, username, existingFolderId) {
@@ -442,11 +475,16 @@ function approvedProviders_() {
 }
 
 function publicProvider_(row) {
+  const engagementTypes = jsonArray_(row.engagement_types_json);
   return {
     id: row.user_uid, username: row.username, name: row.display_name, category: row.category,
     district: row.district, skills: jsonArray_(row.skills_json), experience: Number(row.experience_years || 0),
     rate: Number(row.rate_lkr || 0), approved: true, tier: 't2_profile', availability: 'available',
-    radiusKm: 50, perKmRate: 45, workingDays: [1, 2, 3, 4, 5, 6],
+    lat: row.lat === '' || row.lat == null ? null : Number(row.lat),
+    lng: row.lng === '' || row.lng == null ? null : Number(row.lng),
+    radiusKm: Number(row.service_radius_km || 15) || 15, perKmRate: 45, workingDays: [1, 2, 3, 4, 5, 6],
+    engagementTypes: engagementTypes.length ? engagementTypes : ['quick', 'day'],
+    daysPerWeek: Number(row.days_per_week || 0),
     rating: 0, ratingCount: 0, jobsCompleted: 0, responseRate: 0.6, teamSize: 1,
     availableSlots: ['morning','lunch','evening'], supplyCapabilities: ['labour_only'],
     portfolio: 'Verified provider profile'
@@ -458,7 +496,12 @@ function publicOwnProfile_(row) {
     user_uid: row.user_uid, email: row.email, username: row.username, display_name: row.display_name,
     roles: jsonArray_(row.roles_json), status: row.status, district: row.district,
     provider_category: row.category, skills: jsonArray_(row.skills_json), contact_phone: row.phone,
-    experience_years: Number(row.experience_years || 0), rate_lkr: Number(row.rate_lkr || 0)
+    experience_years: Number(row.experience_years || 0), rate_lkr: Number(row.rate_lkr || 0),
+    lat: row.lat === '' || row.lat == null ? null : Number(row.lat),
+    lng: row.lng === '' || row.lng == null ? null : Number(row.lng),
+    service_radius_km: Number(row.service_radius_km || 15),
+    engagement_types: jsonArray_(row.engagement_types_json),
+    days_per_week: Number(row.days_per_week || 0)
   };
 }
 
@@ -479,6 +522,17 @@ function sheet_(name) {
   if (sheet.getLastRow() === 0) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold').setBackground('#173b31').setFontColor('#ffffff');
     sheet.setFrozenRows(1);
+    return sheet;
+  }
+  // Self-migrate: if new columns were appended to HEADERS, extend the existing
+  // header row. Only trailing additions are supported (existing headers must be
+  // a prefix), so live data columns never shift.
+  const existing = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function(v) { return String(v); });
+  if (existing.length < headers.length) {
+    const prefixOk = existing.every(function(h, i) { return h === headers[i]; });
+    if (!prefixOk) throw new Error('Header mismatch in ' + name + '; manual migration required.');
+    const added = headers.slice(existing.length);
+    sheet.getRange(1, existing.length + 1, 1, added.length).setValues([added]).setFontWeight('bold').setBackground('#173b31').setFontColor('#ffffff');
   }
   return sheet;
 }

@@ -1309,3 +1309,17 @@ textarea {
     bottom: 86px;
   }
 }
+
+/* Location capture + map picker (geo matching) */
+.location-field { display: grid; gap: 8px; margin: 4px 0; }
+.location-label { font-weight: 600; font-size: 0.95rem; }
+.location-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.location-status { margin: 0; font-size: 0.85rem; }
+.location-status.location-set { color: #135e4b; font-weight: 600; }
+.map-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+.map-modal[hidden] { display: none; }
+.map-modal-card { background: #fff; border-radius: 16px; width: min(560px, 100%); max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+.map-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #eee; }
+.map-canvas { flex: 1; min-height: 360px; }
+.map-modal-actions { padding: 12px 16px; border-top: 1px solid #eee; }
+.map-modal-actions .primary-action { width: 100%; }

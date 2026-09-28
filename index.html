@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f5c542">
     <title>පොඩි පොඩි වැඩ | සේවා ලබාගන්න</title>
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=27">
+    <link rel="stylesheet" href="styles.css?v=32">
   </head>
   <body>
     <div class="app-shell">
@@ -103,6 +103,27 @@
                     <select id="jobCategory"></select>
                   </label>
                 <label>
+                  <span>වැඩේ ආකාරය</span>
+                  <select id="jobEngagement">
+                    <option value="quick">ඉක්මන් වැඩක් (පැය කිහිපයක්)</option>
+                    <option value="day" selected>දවසක වැඩක්</option>
+                    <option value="multi_day">දින කිහිපයක වැඩක්</option>
+                    <option value="full_time">ස්ථිර / නවාතැන් සේවය</option>
+                  </select>
+                </label>
+                <label id="hoursField" hidden>
+                  <span>ආසන්න පැය ගණන</span>
+                  <input id="jobHours" type="number" min="1" max="24" step="1" value="1">
+                </label>
+                <label id="durationField" hidden>
+                  <span>දින ගණන</span>
+                  <input id="jobDurationDays" type="number" min="1" max="365" step="1" value="3">
+                </label>
+                <label id="daysPerWeekField" hidden>
+                  <span>සතියකට දින ගණන</span>
+                  <input id="jobDaysPerWeek" type="number" min="1" max="7" step="1" value="5">
+                </label>
+                <label>
                   <span id="jobDescriptionLabel">මොන වැඩේද?</span>
                   <textarea id="jobDescription" rows="5">නාන කාමරයේ වතුර බටයක කාන්දුවක් තියෙනවා. අද හෝ හෙට ප්ලම්බර් කෙනෙක් (ජලනල කාර්මිකයෙක්) අවශ්‍යයි.</textarea>
                 </label>
@@ -124,6 +145,16 @@
                   <span>ඔබට වියදම් කළ හැකි උපරිම මුදල (රු.)</span>
                   <input id="jobBudget" type="number" min="1000" step="500" value="8000">
                 </label>
+                <div class="location-field" data-location>
+                  <span class="location-label">ඔබේ ස්ථානය <small>(ළඟම සිටින සේවකයා සොයන්න)</small></span>
+                  <div class="location-actions">
+                    <button type="button" class="ghost-action" data-loc-gps>📍 මගේ ස්ථානය</button>
+                    <button type="button" class="ghost-action" data-loc-map>සිතියමෙන් තෝරන්න</button>
+                  </div>
+                  <p class="location-status muted" data-loc-status>ස්ථානය තෝරලා නැහැ — දිස්ත්‍රික්කය අනුව සොයයි.</p>
+                  <input type="hidden" id="jobLat" data-loc-lat>
+                  <input type="hidden" id="jobLng" data-loc-lng>
+                </div>
                 <details class="advanced-options">
                   <summary>තවත් විස්තර එකතු කරන්න <small>(අත්‍යවශ්‍ය නැහැ)</small></summary>
                   <div id="jobGuidance" class="role-guidance"></div>
@@ -243,6 +274,35 @@
                     <select id="providerDistrict" data-districts></select>
                   </label>
                 </div>
+                <div class="location-field" data-location>
+                  <span class="location-label">ඔබ වැඩ කරන ස්ථානය <small>(ළඟම වැඩ ලබාගන්න)</small></span>
+                  <div class="location-actions">
+                    <button type="button" class="ghost-action" data-loc-gps>📍 මගේ ස්ථානය</button>
+                    <button type="button" class="ghost-action" data-loc-map>සිතියමෙන් තෝරන්න</button>
+                  </div>
+                  <p class="location-status muted" data-loc-status>ස්ථානය තෝරලා නැහැ.</p>
+                  <input type="hidden" id="providerLat" data-loc-lat>
+                  <input type="hidden" id="providerLng" data-loc-lng>
+                </div>
+                <div class="two-col">
+                  <label>
+                    <span>ඔබ වැඩට යන උපරිම දුර (km)</span>
+                    <input id="providerRadius" type="number" min="1" max="100" step="1" value="15">
+                  </label>
+                  <label>
+                    <span>සතියකට වැඩ කළ හැකි දින <small>(ස්ථිර සේවය සඳහා)</small></span>
+                    <input id="providerDaysPerWeek" type="number" min="0" max="7" step="1" value="0">
+                  </label>
+                </div>
+                <fieldset class="chip-field">
+                  <legend>ඔබ භාරගන්නා වැඩ ආකාර</legend>
+                  <div class="chip-options">
+                    <label><input type="checkbox" name="providerEngagement" value="quick" checked> ඉක්මන් වැඩ</label>
+                    <label><input type="checkbox" name="providerEngagement" value="day" checked> දවසක වැඩ</label>
+                    <label><input type="checkbox" name="providerEngagement" value="multi_day"> දින කිහිපයක වැඩ</label>
+                    <label><input type="checkbox" name="providerEngagement" value="full_time"> ස්ථිර / නවාතැන්</label>
+                  </div>
+                </fieldset>
                 <details class="advanced-options">
                   <summary>ගාස්තු, පළපුරුද්ද සහ ලේඛන එකතු කරන්න</summary>
                 <div id="roleGuidance" class="role-guidance"></div>
@@ -361,9 +421,22 @@
       </main>
     </div>
 
+    <div class="map-modal" id="mapModal" hidden role="dialog" aria-modal="true" aria-label="සිතියමෙන් ස්ථානය තෝරන්න">
+      <div class="map-modal-card">
+        <div class="map-modal-head">
+          <strong>සිතියම මත ඔබේ ස්ථානය ලකුණු කරන්න</strong>
+          <button type="button" class="icon-btn" id="mapClose" aria-label="වසන්න">✕</button>
+        </div>
+        <div id="mapCanvas" class="map-canvas"></div>
+        <div class="map-modal-actions">
+          <button type="button" class="primary-action" id="mapConfirm" disabled>මෙම ස්ථානය තෝරන්න</button>
+        </div>
+      </div>
+    </div>
+
     <script>window.PODI_PODI_CONFIG = window.PODI_PODI_CONFIG || null;</script>
     <script src="config.js"></script>
-    <script src="app.js?v=31"></script>
+    <script src="app.js?v=32"></script>
     <script type="module" src="backend-client.js?v=3"></script>
   </body>
 </html>
