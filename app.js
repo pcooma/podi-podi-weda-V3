@@ -2506,7 +2506,7 @@ async function addProvider() {
       const documentType = $("#providerDocumentType").value;
       for (const file of documents) await backend.uploadDocument(file, documentType);
     } catch (error) {
-      toast(error.message || "Secure profile save failed.");
+      toast(error.message || "ඔබේ තොරතුරු සුරැකීමට නොහැකි විය — නැවත උත්සාහ කරන්න.");
       return;
     }
   }
@@ -2728,7 +2728,7 @@ on("#resendCodeButton", "click", () => {
 on("#accountForm", "submit", async (event) => {
   event.preventDefault();
   const backend = window.PodiBackend;
-  if (!backend?.isConfigured()) { toast("පළමුව Google backend config එකතු කරන්න."); return; }
+  if (!backend?.isConfigured()) { toast("සේවාව තවම සූදානම් නැහැ. මොහොතකින් නැවත උත්සාහ කරන්න."); return; }
   const email = $("#accountEmail").value.trim();
   if (!email) { toast("Email එකක් ඇතුළත් කරන්න."); return; }
   const button = $("#sendCodeButton");
@@ -2820,7 +2820,7 @@ function initializeBackendStatus() {
           setLocationField($("#providerLat").closest("[data-location]"), saved.lat, saved.lng);
         }
       } catch (error) {
-        toast(error.message || "Saved profile load failed.");
+        toast(error.message || "සුරැකි තොරතුරු පූරණය කිරීමට නොහැකි විය.");
       }
     }
   });
