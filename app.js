@@ -1927,7 +1927,6 @@ function render() {
   renderRoleRegistration();
   renderLatestJob();
   renderProviderWorkspace();
-  renderAdmin();
 }
 
 function renderCategories() {
@@ -2103,6 +2102,7 @@ function renderShortlist(job) {
 
 function renderTimeline(job) {
   const timeline = $("#jobTimeline");
+  if (!timeline) return;
   const steps = ["draft", "posted", "matching", "shortlisted", "contact_revealed", "booked", "completed"];
   const stepLabels = {
     draft: "ඉල්ලීම ලියයි",
@@ -2283,6 +2283,7 @@ function translateSkillLevel(level) {
 }
 
 function renderAdmin() {
+  if (!$("#kpis")) return;
   const latestJob = state.jobs[0];
   const unlocked = state.payments.filter((payment) => payment.type === "contact_unlock").length;
   const completed = state.bookings.filter((booking) => booking.status === "completed").length;
@@ -2599,7 +2600,7 @@ on("#jobForm", "submit", async (event) => {
     materialsBy: $("#jobMaterials").value,
     accessInfo: $("#jobAccessInfo").value.trim(),
     accessSlots: $all("input[name='jobSlot']:checked").map((input) => input.value),
-    photos: $("#jobPhotos").files.length,
+    photos: 0,
     structuredInput: {
       mode: jobCategory === "other" ? "custom" : "structured",
       categorySlug: jobCategory,
@@ -2642,13 +2643,6 @@ on("#providerRate", "input", () => {
 
 on("#jobCategory", "change", () => {
   renderClientRequirementControls();
-});
-
-on("#resetDemo", "click", () => {
-  state = structuredClone(initialState);
-  saveState();
-  render();
-  toast("Demo data reset.");
 });
 
 on("#accountToggle", "click", () => {
@@ -2715,32 +2709,15 @@ on("#logoutButton", "click", () => {
 function initializeBackendStatus() {
   const backend = window.PodiBackend;
   if (!backend) return;
-  const status = $("#backendStatus");
   const accountStatus = $("#accountStatus");
   if (!backend.isConfigured()) {
-    status.textContent = "Demo mode";
-    status.classList.add("demo");
-    $("#launchNotice").hidden = false;
-    $("#clientDemoNotice").hidden = false;
-    $("#providerDemoNotice").hidden = false;
-    $("#providerSubmit").disabled = true;
-    $("#providerDocs").disabled = true;
-    $("#accountEmail").disabled = true;
-    $("#sendCodeButton").disabled = true;
-    $("#adminTab").textContent = "Demo Admin";
     $("#accountToggle").hidden = true;
     return;
   }
-  status.textContent = "Secure backend";
-  status.classList.remove("demo");
-  $("#launchNotice").hidden = true;
-  $("#clientDemoNotice").hidden = true;
-  $("#providerDemoNotice").hidden = true;
   $("#providerSubmit").disabled = false;
   $("#providerDocs").disabled = false;
   $("#accountEmail").disabled = false;
   $("#sendCodeButton").disabled = false;
-  $("#adminTab").hidden = true;
   $("#accountToggle").hidden = false;
   backend.onAuthChange(async (user) => {
     accountStatus.textContent = user ? `ඇතුළු වී ඇත: ${user.email}` : "Email කේතයෙන් ඇතුළු වී ඔබේ profile එක secure ලෙස save කරන්න.";

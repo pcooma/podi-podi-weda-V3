@@ -21,7 +21,6 @@
         <nav class="role-tabs" aria-label="Role views">
           <button class="role-tab active" data-view="client" type="button"><span>🔎</span> වැඩක් කරගන්න</button>
           <button class="role-tab" data-view="provider" type="button"><span>🧰</span> වැඩක් කරන්න</button>
-          <button class="role-tab" data-view="admin" type="button" id="adminTab" hidden>Demo Admin</button>
         </nav>
         <div class="system-card">
           <span class="eyebrow">ඉතා සරලයි</span>
@@ -36,19 +35,10 @@
             <h1>ඔබට අවශ්‍ය වැඩේ පහසුවෙන් කරගන්න.</h1>
           </div>
           <div class="top-actions">
-            <span class="backend-status demo" id="backendStatus">Demo mode</span>
             <button class="primary-action" id="installAppButton" type="button" hidden>📲 App එක install කරන්න</button>
             <button class="ghost-action" id="accountToggle" type="button">ගිණුම</button>
-            <button class="icon-btn" id="resetDemo" type="button" aria-label="Reset demo data" title="Reset demo data">
-              <span aria-hidden="true">↺</span>
-            </button>
           </div>
         </header>
-
-        <section class="launch-notice" id="launchNotice" role="status">
-          <strong>මෙය public preview එකක් — සැබෑ පුද්ගලික තොරතුරු ඇතුළත් නොකරන්න.</strong>
-          <span>Secure accounts, document uploads, payments සහ bookings තවම live කර නැහැ. Client matching test data පමණක් ඔබගේ browser එකේ තාවකාලිකව සුරැකේ.</span>
-        </section>
 
         <section class="account-panel" id="accountPanel" hidden aria-label="Account access">
           <div>
@@ -107,7 +97,6 @@
                 <span class="status-pill">නොමිලේ</span>
               </div>
               <form id="jobForm" class="form-stack">
-                <p class="form-notice" id="clientDemoNotice">Preview mode: මෙහි ඇතුළත් කරන විස්තර server එකකට යවන්නේ නැහැ. සැබෑ ලිපිනයන්, දුරකථන අංක හෝ පුද්ගලික ලේඛන දාන්න එපා.</p>
                 <label>
                     <span>ඔබට අවශ්‍ය සේවා වර්ගය</span>
                     <select id="jobCategory"></select>
@@ -176,16 +165,10 @@
                     </select>
                   </label>
                   </div>
-                  <div class="two-col">
                   <label>
                     <span>ඇතුල්වීම / accessibility</span>
                     <input id="jobAccessInfo" placeholder="උදා: lunch hour පමණයි, parking නැහැ, security pass ඕන">
                   </label>
-                    <label>
-                      <span>ඡායාරූප / ලේඛන</span>
-                      <input id="jobPhotos" type="file" multiple accept="image/*,.pdf" disabled title="Uploads will open after the secure jobs backend is deployed">
-                    </label>
-                  </div>
                   <fieldset class="chip-field">
                     <legend>වැඩ කරන්න පුළුවන් වේලාවන්</legend>
                     <div class="chip-options time-options">
@@ -206,7 +189,6 @@
                   <p class="eyebrow">පියවර 2</p>
                   <h2>ඔබේ ඉල්ලීම</h2>
                 </div>
-                <span class="status-pill muted">Preview</span>
               </div>
               <div id="aiPanel" class="ai-panel">
                 <p>ඔබේ ඉල්ලීම යොමු කළ පසු, ඊට ගැළපෙන අයගේ විස්තර මෙහි දිස්වනු ඇත.</p>
@@ -227,16 +209,6 @@
             </div>
           </section>
 
-          <details class="panel timeline-panel secondary-panel">
-            <summary>ඉල්ලීමේ ඉදිරි පියවර බලන්න</summary>
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Current lifecycle</p>
-                <h2>Job state</h2>
-              </div>
-            </div>
-            <ol id="jobTimeline" class="timeline"></ol>
-          </details>
         </section>
 
         <section id="provider-view" class="view" aria-label="වැඩ ලබාගන්න ලියාපදිංචිය">
@@ -250,7 +222,6 @@
                 <span class="status-pill">තහවුරු කිරීමෙන් පසු ඇතුළත් කෙරේ</span>
               </div>
               <form id="providerForm" class="form-stack">
-                <p class="form-notice warning" id="providerDemoNotice">Provider registration තවම විවෘත කර නැහැ. Google secure backend සම්බන්ධ කළ පසු මෙම form එක භාවිත කළ හැක.</p>
                 <div class="two-col">
                   <label>
                     <span>ඔබේ නම</span>
@@ -394,38 +365,12 @@
           </section>
         </section>
 
-        <section id="admin-view" class="view" aria-label="Admin workspace">
-          <div class="admin-grid">
-            <section class="panel kpi-panel">
-              <p class="eyebrow">Survival metrics</p>
-              <div id="kpis" class="kpi-grid"></div>
-            </section>
-            <section class="panel">
-              <div class="panel-head">
-                <div>
-                  <p class="eyebrow">Verification queue</p>
-                  <h2>Document review</h2>
-                </div>
-              </div>
-              <div id="verificationQueue" class="admin-list"></div>
-            </section>
-            <section class="panel">
-              <div class="panel-head">
-                <div>
-                  <p class="eyebrow">Moderation</p>
-                  <h2>Complaints and audit</h2>
-                </div>
-              </div>
-              <div id="disputeQueue" class="admin-list"></div>
-            </section>
-          </div>
-        </section>
       </main>
     </div>
 
     <script>window.PODI_PODI_CONFIG = window.PODI_PODI_CONFIG || null;</script>
     <script src="config.js"></script>
-    <script src="app.js?v=29"></script>
+    <script src="app.js?v=30"></script>
     <script type="module" src="backend-client.js?v=3"></script>
   </body>
 </html>
