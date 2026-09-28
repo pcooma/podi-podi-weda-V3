@@ -263,9 +263,18 @@ function searchProviders_(identity, input) {
   requireVerifiedEmail_(identity);
   const category = clean_(input.category, 80);
   const district = clean_(input.district, 80);
-  return approvedProviders_().filter(function(row) {
+  const page = Math.max(1, Number(input.page || 1));
+  const pageSize = Math.min(50, Math.max(1, Number(input.pageSize || 20)));
+  const filtered = approvedProviders_().filter(function(row) {
     return (!category || row.category === category) && (!district || row.district === district);
-  }).slice(0, 50).map(publicProvider_);
+  });
+  return {
+    items: filtered.slice((page - 1) * pageSize, page * pageSize).map(publicProvider_),
+    page: page,
+    pageSize: pageSize,
+    total: filtered.length,
+    hasMore: page * pageSize < filtered.length
+  };
 }
 
 function createBooking_(identity, input) {
@@ -323,10 +332,14 @@ function requestOtp_(input) {
   const email = normEmail_(input.email);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Enter a valid email address.');
   const cache = CacheService.getScriptCache();
+  const globalKey = 'otp_global_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmm');
+  const globalCount = Number(cache.get(globalKey) || 0);
+  if (globalCount >= 30) throw new Error('Too many sign-in requests. Please try again later.');
   if (cache.get('otp_rl_' + email)) throw new Error('Please wait a minute before requesting another code.');
   const code = String(Math.floor(100000 + Math.random() * 900000));
   cache.put('otp_' + email, JSON.stringify({hash: otpHash_(code), attempts: 0}), 600);
   cache.put('otp_rl_' + email, '1', 60);
+  cache.put(globalKey, String(globalCount + 1), 120);
   MailApp.sendEmail({
     to: email,
     subject: 'Podi Podi Weda — your verification code',

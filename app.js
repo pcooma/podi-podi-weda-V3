@@ -1876,7 +1876,8 @@ async function createJob(formData) {
         accessSlots: job.accessSlots
       });
       job.id = savedJob.id;
-      providerPool = await backend.searchProviders({category: classification.category.slug, district: job.district});
+      const providerResult = await backend.searchProviders({category: classification.category.slug, district: job.district, page: 1, pageSize: 50});
+      providerPool = Array.isArray(providerResult) ? providerResult : (providerResult.items || []);
     } catch (error) {
       toast(error.message || "ඉල්ලීම Google Drive වෙත save කළ නොහැකි විය.");
       return;
