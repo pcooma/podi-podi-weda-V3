@@ -1922,7 +1922,29 @@ async function createJob(formData) {
   }, 150);
 }
 
+const SRI_LANKA_DISTRICTS = [
+  ["Colombo", "කොළඹ"], ["Gampaha", "ගම්පහ"], ["Kalutara", "කළුතර"],
+  ["Kandy", "මහනුවර"], ["Matale", "මාතලේ"], ["Nuwara Eliya", "නුවරඑළිය"],
+  ["Galle", "ගාල්ල"], ["Matara", "මාතර"], ["Hambantota", "හම්බන්තොට"],
+  ["Jaffna", "යාපනය"], ["Kilinochchi", "කිලිනොච්චිය"], ["Mannar", "මන්නාරම"],
+  ["Vavuniya", "වවුනියාව"], ["Mullaitivu", "මුලතිව්"], ["Batticaloa", "මඩකලපුව"],
+  ["Ampara", "අම්පාර"], ["Trincomalee", "ත්‍රිකුණාමලය"], ["Kurunegala", "කුරුණෑගල"],
+  ["Puttalam", "පුත්තලම"], ["Anuradhapura", "අනුරාධපුර"], ["Polonnaruwa", "පොළොන්නරුව"],
+  ["Badulla", "බදුල්ල"], ["Monaragala", "මොණරාගල"], ["Ratnapura", "රත්නපුර"],
+  ["Kegalle", "කෑගල්ල"]
+];
+
+function renderDistricts() {
+  const options = SRI_LANKA_DISTRICTS.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
+  $all("select[data-districts]").forEach((select) => {
+    const current = select.value;
+    select.innerHTML = options;
+    if (current) select.value = current;
+  });
+}
+
 function render() {
+  renderDistricts();
   renderCategories();
   renderClientRequirementControls();
   renderRoleRegistration();
@@ -2152,7 +2174,7 @@ function renderProviderWorkspace() {
   const displayLeads = myLeads.length ? myLeads : state.leads;
   const noLeadsMsg = myLeads.length === 0 && state.leads.length > 0
     ? `<p class="muted">${category.si} ඉල්ලීම් තව නැත. ලියාපදිංචිය අනුමත වූ පසු ගැළපෙන ඇණවුම් මෙහි දිස්වේ.</p>`
-    : `<p class="muted">ලියාපදිංචිය අනුමත වූ පසු ගැළපෙන ඇණවුම් WhatsApp / SMS මගින් දිස්වේ.</p>`;
+    : `<p class="muted">ලියාපදිංචිය පරීක්ෂා වූ පසු ගැළපෙන වැඩ මෙහි දිස්වේ.</p>`;
   $("#leadQueue").innerHTML = displayLeads.length ? displayLeads.slice(0, 8).map((lead) => {
     const job = state.jobs.find(j => j.id === lead.jobId);
     const workerName = job ? `${job.classification?.category?.si || lead.category}` : lead.category;
@@ -2334,7 +2356,7 @@ function unlockContact(_jobId, _providerId) {
 
 async function bookProvider(jobId, providerId) {
   if (!secureBackendConfigured()) {
-    toast("Bookings තවම live කර නැහැ. Secure backend සම්බන්ධ කළ පසු භාවිත කළ හැක.");
+    toast("වෙන් කිරීම් තවම විවෘත කර නැහැ.");
     return;
   }
   const job = state.jobs.find((item) => item.id === jobId);
@@ -2436,7 +2458,7 @@ async function addProvider() {
   };
 
   if (backend?.isConfigured()) {
-    if (!backend.currentUser()) { toast("Profile save කිරීමට login වෙන්න."); return; }
+    if (!backend.currentUser()) { toast("ඔබේ තොරතුරු සුරැකීමට ගිණුමට ඇතුළු වන්න."); return; }
     try {
       await backend.saveProfile({
         displayName: provider.name,
@@ -2465,11 +2487,11 @@ async function addProvider() {
   const statusMessage = $("#providerStatusMessage");
   if (statusMessage) {
     statusMessage.hidden = false;
-    statusMessage.textContent = "ලියාපදිංචිය සාර්ථකයි! Admin අනුමත කළ පසු ගැළපෙන ඇණවුම් WhatsApp / SMS මගින් ලැබෙනු ඇත.";
+    statusMessage.textContent = "ලියාපදිංචිය සාර්ථකයි! ඔබේ තොරතුරු පරීක්ෂා කළ පසු ගැළපෙන වැඩක් ආ විට අපි ඔබ හා සම්බන්ධ වන්නෙමු.";
   }
   $("#providerForm").reset();
   renderRoleRegistration();
-  toast("ලියාපදිංචිය යොමු කළා. Admin අනුමතය බලාපොරොත්තු වන්න.");
+  toast("ලියාපදිංචිය යොමු කළා. පරීක්ෂා කිරීමෙන් පසු දැනුම් දෙන්නෙමු.");
 }
 
 function updateProviderRates(providerId, mode) {
@@ -2655,8 +2677,16 @@ function showCodeStep(waiting) {
   $("#accountCodeField").hidden = !waiting;
   $("#sendCodeButton").hidden = waiting;
   $("#verifyButton").hidden = !waiting;
+  $("#resendCodeButton").hidden = !waiting;
   if (waiting) $("#accountCode").focus();
 }
+
+// Return to the email step so the user can resend the code or fix a typo.
+on("#resendCodeButton", "click", () => {
+  showCodeStep(false);
+  $("#accountCode").value = "";
+  $("#accountEmail").focus();
+});
 
 // Step 1: email a one-time code.
 on("#accountForm", "submit", async (event) => {

@@ -35,7 +35,7 @@
             <h1>ඔබට අවශ්‍ය වැඩේ පහසුවෙන් කරගන්න.</h1>
           </div>
           <div class="top-actions">
-            <button class="primary-action" id="installAppButton" type="button" hidden>📲 App එක install කරන්න</button>
+            <button class="primary-action" id="installAppButton" type="button" hidden>📲 App එක ලබාගන්න</button>
             <button class="ghost-action" id="accountToggle" type="button">ගිණුම</button>
           </div>
         </header>
@@ -58,6 +58,7 @@
             <div class="row-actions">
               <button class="primary-action" id="sendCodeButton" type="submit" disabled>කේතය එවන්න</button>
               <button class="primary-action" id="verifyButton" type="button" hidden>ඇතුළු වන්න</button>
+              <button class="ghost-action" id="resendCodeButton" type="button" hidden>නැවත එවන්න / email වෙනස් කරන්න</button>
               <button class="ghost-action" id="logoutButton" type="button" hidden>ඉවත් වන්න</button>
             </div>
           </form>
@@ -108,11 +109,7 @@
                 <div class="two-col">
                   <label>
                     <span>ප්‍රදේශය</span>
-                    <select id="jobDistrict">
-                      <option value="Colombo">කොළඹ</option>
-                      <option value="Gampaha">ගම්පහ</option>
-                      <option value="Kalutara">කළුතර</option>
-                    </select>
+                    <select id="jobDistrict" data-districts></select>
                   </label>
                   <label>
                     <span>කොතරම් ඉක්මනට අවශ්‍යද?</span>
@@ -144,7 +141,7 @@
                       <select id="jobSize">
                         <option value="small">පොඩි වැඩක්</option>
                         <option value="medium">සාමාන්‍ය වැඩක්</option>
-                        <option value="large">ලොකු වැඩක් / Project එකක්</option>
+                        <option value="large">ලොකු වැඩක්</option>
                         <option value="ongoing">දිගටම තියෙන වැඩක්</option>
                       </select>
                     </label>
@@ -158,16 +155,16 @@
                     <span>බඩු / උපකරණ සපයන්නේ කවුද?</span>
                     <select id="jobMaterials">
                       <option value="client_materials">මම බඩු දෙන්නම් - වැඩකරුවන් පමණක් ඕන</option>
-                      <option value="worker_tools">බඩු මගෙන්, tools සේවා සපයන්නාගෙන්</option>
-                      <option value="worker_materials">බඩුත් සේවා සපයන්නා quote කර ගේන්න</option>
+                      <option value="worker_tools">බඩු මගෙන්, උපකරණ සේවා සපයන්නාගෙන්</option>
+                      <option value="worker_materials">බඩුත් සේවා සපයන්නා මිල ගණන් කර ගේන්න</option>
                       <option value="both">බඩු කොටසක් මගෙන්, කොටසක් සේවා සපයන්නාගෙන්</option>
                       <option value="unknown">තවම දන්නේ නැහැ / උපදෙස් ඕන</option>
                     </select>
                   </label>
                   </div>
                   <label>
-                    <span>ඇතුල්වීම / accessibility</span>
-                    <input id="jobAccessInfo" placeholder="උදා: lunch hour පමණයි, parking නැහැ, security pass ඕන">
+                    <span>ස්ථානයට පැමිණීම ගැන විශේෂ දේ</span>
+                    <input id="jobAccessInfo" placeholder="උදා: දවල් වෙලාවට පමණයි, වාහන නවත්වන්න තැනක් නැහැ">
                   </label>
                   <fieldset class="chip-field">
                     <legend>වැඩ කරන්න පුළුවන් වේලාවන්</legend>
@@ -233,7 +230,7 @@
                   </label>
                 </div>
                 <label>
-              <span>හඳුනාගැනීමේ නම (English letters/numbers)</span>
+              <span>හඳුනාගැනීමේ නම <small>(ඉංග්‍රීසි අකුරු හෝ ඉලක්කම්)</small></span>
                   <input id="providerUsername" required minlength="3" maxlength="30" pattern="[A-Za-z0-9._-]+" placeholder="උදා: sunil.perera28">
                 </label>
                 <div class="two-col">
@@ -243,11 +240,7 @@
                   </label>
                   <label>
                     <span>ඔබට වැඩ කළ හැකි ප්‍රදේශය</span>
-                    <select id="providerDistrict">
-                      <option value="Colombo">කොළඹ</option>
-                      <option value="Gampaha">ගම්පහ</option>
-                      <option value="Kalutara">කළුතර</option>
-                    </select>
+                    <select id="providerDistrict" data-districts></select>
                   </label>
                 </div>
                 <details class="advanced-options">
@@ -278,7 +271,7 @@
                     <label>
                       <input type="radio" name="pricingMode" value="by_slot">
                       <strong>වේලාව අනුව වෙනස් මිල</strong>
-                      <span>උදේ, lunch, සවස, රාත්‍රී වෙන වෙනම ගාස්තු දාන්න.</span>
+                      <span>උදේ, දවල්, සවස, රාත්‍රී වෙන වෙනම ගාස්තු දාන්න.</span>
                     </label>
                   </div>
                 </fieldset>
@@ -308,8 +301,8 @@
                     <span>ඔබට සැපයිය හැකි දේ</span>
                     <select id="providerSupply">
                       <option value="labour_only">ශ්‍රමය පමණයි</option>
-                      <option value="tools">ශ්‍රමය + tools</option>
-                      <option value="materials">ශ්‍රමය + tools + බඩු quote කර ගෙන එන්න පුළුවන්</option>
+                      <option value="tools">ශ්‍රමය + උපකරණ</option>
+                      <option value="materials">ශ්‍රමය + උපකරණ + බඩු මිල ගණන් කර ගෙන ඒම</option>
                     </select>
                   </label>
                   <label>
@@ -324,19 +317,19 @@
                 <label>
                   <span id="documentLabel">ජාතික හැඳුනුම්පත හෝ ඔබගේ ඡායාරූපයක් (පසුව වුණත් ඇතුළත් කරන්න පුළුවන්)</span>
                   <select id="providerDocumentType">
-                    <option value="certificate">Certificate / qualification</option>
-                    <option value="nic_front">NIC front</option>
-                    <option value="nic_back">NIC back</option>
-                    <option value="selfie">Selfie / profile identity photo</option>
-                    <option value="licence">Professional / driving licence</option>
-                    <option value="business_registration">Business registration</option>
-                    <option value="reference">Reference</option>
-                    <option value="portfolio">Public portfolio sample</option>
+                    <option value="certificate">සහතිකය / පුහුණුව</option>
+                    <option value="nic_front">හැඳුනුම්පත ඉදිරිපස</option>
+                    <option value="nic_back">හැඳුනුම්පත පිටුපස</option>
+                    <option value="selfie">ඔබේ ඡායාරූපය (selfie)</option>
+                    <option value="licence">බලපත්‍රය (රියදුරු / වෘත්තීය)</option>
+                    <option value="business_registration">ව්‍යාපාර ලියාපදිංචිය</option>
+                    <option value="reference">නිර්දේශයක්</option>
+                    <option value="portfolio">කළ වැඩක ඡායාරූපයක්</option>
                   </select>
                   <input id="providerDocs" type="file" multiple accept="image/*,.pdf" disabled>
                 </label>
                 </details>
-                <p class="form-note">ඔබේ ලියාපදිංචිය තහවුරු කළ පසු, ඔබට ගැළපෙන වැඩ SMS හෝ WhatsApp මගින් දැනුම් දෙනු ලැබේ.</p>
+                <p class="form-note">ඔබේ ලියාපදිංචිය පරීක්ෂා කළ පසු, ඔබට ගැළපෙන වැඩක් ආ විට අපි ඔබ හා සම්බන්ධ වන්නෙමු.</p>
                 <button class="primary-action primary-large" id="providerSubmit" type="submit" disabled>ලියාපදිංචි වන්න</button>
                 <div id="providerStatusMessage" class="success-message" hidden></div>
               </form>
@@ -358,7 +351,7 @@
             <div class="panel-head">
               <div>
                 <p class="eyebrow">ඔබට ලැබෙන වැඩ</p>
-                <h2>SMS සහ WhatsApp පණිවිඩ</h2>
+                <h2>වැඩ පිළිබඳ දැනුම්දීම්</h2>
               </div>
             </div>
             <div id="leadQueue" class="lead-list"></div>
@@ -370,7 +363,7 @@
 
     <script>window.PODI_PODI_CONFIG = window.PODI_PODI_CONFIG || null;</script>
     <script src="config.js"></script>
-    <script src="app.js?v=30"></script>
+    <script src="app.js?v=31"></script>
     <script type="module" src="backend-client.js?v=3"></script>
   </body>
 </html>
