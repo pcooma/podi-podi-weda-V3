@@ -542,7 +542,7 @@ const remoteFriendlyCategorySlugs = [
 
 const timeSlotLabels = {
   morning: "උදේ",
-  lunch: "Lunch hour",
+  lunch: "දවල්",
   evening: "සවස",
   night: "රාත්‍රී"
 };

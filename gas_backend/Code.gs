@@ -433,6 +433,7 @@ function publicProvider_(row) {
     id: row.user_uid, username: row.username, name: row.display_name, category: row.category,
     district: row.district, skills: jsonArray_(row.skills_json), experience: Number(row.experience_years || 0),
     rate: Number(row.rate_lkr || 0), approved: true, tier: 't2_profile', availability: 'available',
+    radiusKm: 50, perKmRate: 45, workingDays: [1, 2, 3, 4, 5, 6],
     rating: 0, ratingCount: 0, jobsCompleted: 0, responseRate: 0.6, teamSize: 1,
     availableSlots: ['morning','lunch','evening'], supplyCapabilities: ['labour_only'],
     portfolio: 'Verified provider profile'
