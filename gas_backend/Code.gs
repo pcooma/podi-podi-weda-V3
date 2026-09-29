@@ -12,7 +12,7 @@
  *   ROOT_FOLDER_ID, USERS_FOLDER_ID, DB_SPREADSHEET_ID, MAX_UPLOAD_BYTES
  */
 
-const BUILD = '2026-09-28-drive-v6-ratings-calendar';
+const BUILD = '2026-09-29-drive-v7-admin-idempotent';
 const DEFAULTS = Object.freeze({
   ROOT_FOLDER_ID: '1zwnXP1BQJudpeQSGpUPOob5GpEUL3mH5',
   USERS_FOLDER_ID: '193a7fFJaV9QfzK5QZj9jQ95U1OQ_-oVk',
