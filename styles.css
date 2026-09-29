@@ -1347,3 +1347,7 @@ textarea {
 .avail-slot.blocked { background: #eeeeee; color: #666; text-decoration: line-through; border-color: #ddd; }
 .star-btn { background: none; border: none; font-size: 1.35rem; line-height: 1; color: #e0b000; cursor: pointer; padding: 0 2px; }
 .rate-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+
+/* Auth mode links */
+.link-action { background:none; border:none; color:#135e4b; font-size:0.9rem; text-decoration:underline; cursor:pointer; padding:4px 0; }
+#authLinks { gap:16px; flex-wrap:wrap; }

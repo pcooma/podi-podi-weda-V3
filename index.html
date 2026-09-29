@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f5c542">
     <title>පොඩි පොඩි වැඩ | සේවා ලබාගන්න</title>
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=36">
+    <link rel="stylesheet" href="styles.css?v=39">
   </head>
   <body>
     <div class="app-shell">
@@ -44,25 +44,36 @@
 
         <section class="account-panel" id="accountPanel" hidden aria-label="Account access">
           <div>
-            <p class="eyebrow">ආරක්ෂිත ගිණුම</p>
-            <h2>Email එකෙන් ඇතුළු වන්න</h2>
-            <p id="accountStatus">ඔබේ email එකට එවන 6-ඉලක්කම් කේතය ඇතුළත් කර ඇතුළු වන්න. මුරපදයක් අවශ්‍ය නැහැ.</p>
+            <p class="eyebrow">ගිණුම</p>
+            <h2 id="authTitle">ඇතුළු වන්න</h2>
+            <p id="accountStatus">දුරකථන අංකය සහ PIN එකෙන් ඇතුළු වන්න.</p>
           </div>
           <form id="accountForm" class="account-form">
-            <label>
-              <span>පිවිසුම් email</span>
-              <input id="accountEmail" type="email" autocomplete="email" required disabled>
-              <small class="form-note">කේතය ලබාගැනීමට භාවිත කරයි. මෙම email එක ඔබේ public පැතිකඩේ නොපෙන්වයි.</small>
+            <label id="mobileField">
+              <span>දුරකථන අංකය</span>
+              <input id="accountMobile" inputmode="numeric" autocomplete="tel" maxlength="10" placeholder="07XXXXXXXX" disabled>
             </label>
-            <label id="accountCodeField" hidden>
-              <span>එවන ලද කේතය (6 ඉලක්කම්)</span>
-              <input id="accountCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="123456">
+            <label id="nicField" hidden>
+              <span>ජාතික හැඳුනුම්පත් අංකය (NIC)</span>
+              <input id="accountNic" autocomplete="off" placeholder="උදා: 199512301234 හෝ 953201234V">
+              <small class="form-note">PIN එක අමතක වුවහොත් නැවත සකසන්න මෙය භාවිත වේ.</small>
+            </label>
+            <label id="pinField">
+              <span id="pinLabel">PIN එක (ඉලක්කම් 4ත් 6ත් අතර)</span>
+              <input id="accountPin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]{4,6}" placeholder="****">
+            </label>
+            <label id="pin2Field" hidden>
+              <span>PIN එක නැවත</span>
+              <input id="accountPin2" type="password" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]{4,6}" placeholder="****">
             </label>
             <div class="row-actions">
-              <button class="primary-action" id="sendCodeButton" type="submit" disabled>කේතය එවන්න</button>
-              <button class="primary-action" id="verifyButton" type="button" hidden>ඇතුළු වන්න</button>
-              <button class="ghost-action" id="resendCodeButton" type="button" hidden>නැවත එවන්න / email වෙනස් කරන්න</button>
+              <button class="primary-action" id="accountSubmit" type="submit" disabled>ඇතුළු වන්න</button>
               <button class="ghost-action" id="logoutButton" type="button" hidden>ඉවත් වන්න</button>
+            </div>
+            <div class="row-actions" id="authLinks">
+              <button class="link-action" id="toRegister" type="button">ගිණුමක් නැද්ද? ලියාපදිංචි වන්න</button>
+              <button class="link-action" id="toLogin" type="button" hidden>දැනටමත් ගිණුමක් තිබේද? ඇතුළු වන්න</button>
+              <button class="link-action" id="toReset" type="button">PIN එක අමතකද?</button>
             </div>
           </form>
         </section>
@@ -505,7 +516,7 @@
 
     <script>window.PODI_PODI_CONFIG = window.PODI_PODI_CONFIG || null;</script>
     <script src="config.js"></script>
-    <script src="app.js?v=38"></script>
-    <script type="module" src="backend-client.js?v=8"></script>
+    <script src="app.js?v=39"></script>
+    <script type="module" src="backend-client.js?v=9"></script>
   </body>
 </html>

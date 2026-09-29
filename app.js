@@ -2799,57 +2799,45 @@ document.addEventListener("click", async (event) => {
   }
 });
 
-function showCodeStep(waiting) {
-  $("#accountCodeField").hidden = !waiting;
-  $("#sendCodeButton").hidden = waiting;
-  $("#verifyButton").hidden = !waiting;
-  $("#resendCodeButton").hidden = !waiting;
-  if (waiting) $("#accountCode").focus();
+// ---- Account: mobile number + PIN (login / register / reset) ----
+let authMode = "login";
+function setAuthMode(mode) {
+  authMode = mode;
+  const title = $("#authTitle"), status = $("#accountStatus"), submit = $("#accountSubmit"), pinLabel = $("#pinLabel");
+  $("#nicField").hidden = mode === "login";
+  $("#pin2Field").hidden = mode !== "register";
+  $("#toRegister").hidden = mode !== "login";
+  $("#toLogin").hidden = mode === "login";
+  $("#toReset").hidden = mode !== "login";
+  if (mode === "login") { title.textContent = "ඇතුළු වන්න"; status.textContent = "දුරකථන අංකය සහ PIN එකෙන් ඇතුළු වන්න."; submit.textContent = "ඇතුළු වන්න"; pinLabel.textContent = "PIN එක"; }
+  else if (mode === "register") { title.textContent = "ලියාපදිංචි වන්න"; status.textContent = "දුරකථන අංකය සහ NIC දී අලුත් PIN එකක් සාදන්න."; submit.textContent = "ලියාපදිංචි වන්න"; pinLabel.textContent = "අලුත් PIN එක (ඉලක්කම් 4ත් 6ත් අතර)"; }
+  else { title.textContent = "PIN එක අලුත් කරන්න"; status.textContent = "දුරකථන අංකය සහ NIC දී අලුත් PIN එකක් දෙන්න."; submit.textContent = "PIN එක වෙනස් කරන්න"; pinLabel.textContent = "අලුත් PIN එක"; }
 }
+on("#toRegister", "click", () => setAuthMode("register"));
+on("#toLogin", "click", () => setAuthMode("login"));
+on("#toReset", "click", () => setAuthMode("reset"));
 
-// Return to the email step so the user can resend the code or fix a typo.
-on("#resendCodeButton", "click", () => {
-  showCodeStep(false);
-  $("#accountCode").value = "";
-  $("#accountEmail").focus();
-});
-
-// Step 1: email a one-time code.
 on("#accountForm", "submit", async (event) => {
   event.preventDefault();
   const backend = window.PodiBackend;
   if (!backend?.isConfigured()) { toast("සේවාව තවම සූදානම් නැහැ. මොහොතකින් නැවත උත්සාහ කරන්න."); return; }
-  const email = $("#accountEmail").value.trim();
-  if (!email) { toast("Email එකක් ඇතුළත් කරන්න."); return; }
-  const button = $("#sendCodeButton");
+  const mobile = $("#accountMobile").value.trim();
+  const pin = $("#accountPin").value.trim();
+  const nic = $("#accountNic").value.trim();
+  if (!/^07[0-9]{8}$/.test(mobile.replace(/\D/g, ""))) { toast("07XXXXXXXX ආකාරයේ දුරකථන අංකයක් දෙන්න."); return; }
+  if (!/^[0-9]{4,6}$/.test(pin)) { toast("PIN එක ඉලක්කම් 4ත් 6ත් අතර විය යුතුයි."); return; }
+  if (authMode !== "login" && !nic) { toast("NIC අංකය දෙන්න."); return; }
+  if (authMode === "register" && pin !== $("#accountPin2").value.trim()) { toast("PIN දෙක සමාන නැහැ."); return; }
+  const button = $("#accountSubmit");
   button.disabled = true;
   try {
-    await backend.requestOtp(email);
-    showCodeStep(true);
-    toast("කේතය email එකට එවා ඇත. Inbox එක බලන්න.");
+    if (authMode === "login") { await backend.login(mobile, pin); toast("ඇතුළු වීම සාර්ථකයි."); }
+    else if (authMode === "register") { await backend.register(mobile, pin, nic); toast("ගිණුම සෑදුවා."); }
+    else { await backend.resetPin(mobile, nic, pin); toast("PIN එක අලුත් කළා."); }
+    $("#accountPin").value = ""; $("#accountPin2").value = ""; $("#accountNic").value = "";
+    setAuthMode("login");
   } catch (error) {
-    toast(error.message || "කේතය එවීම අසාර්ථකයි.");
-  } finally {
-    button.disabled = false;
-  }
-});
-
-// Step 2: verify the code to sign in.
-on("#verifyButton", "click", async () => {
-  const backend = window.PodiBackend;
-  if (!backend?.isConfigured()) return;
-  const email = $("#accountEmail").value.trim();
-  const code = $("#accountCode").value.trim();
-  if (!/^[0-9]{6}$/.test(code)) { toast("6-ඉලක්කම් කේතය ඇතුළත් කරන්න."); return; }
-  const button = $("#verifyButton");
-  button.disabled = true;
-  try {
-    await backend.verifyOtp(email, code);
-    showCodeStep(false);
-    $("#accountCode").value = "";
-    toast("ඇතුළු වීම සාර්ථකයි.");
-  } catch (error) {
-    toast(error.message || "ඇතුළු වීම අසාර්ථකයි.");
+    toast(error.message || "අසාර්ථකයි. නැවත උත්සාහ කරන්න.");
   } finally {
     button.disabled = false;
   }
@@ -2859,7 +2847,7 @@ on("#logoutButton", "click", () => {
   const backend = window.PodiBackend;
   if (!backend?.isConfigured()) return;
   backend.logout();
-  showCodeStep(false);
+  setAuthMode("login");
   toast("ඔබ ඉවත් විය.");
 });
 
@@ -2873,25 +2861,28 @@ function initializeBackendStatus() {
   }
   $("#providerSubmit").disabled = false;
   $("#providerDocs").disabled = false;
-  $("#accountEmail").disabled = false;
-  $("#sendCodeButton").disabled = false;
+  $("#accountMobile").disabled = false;
+  $("#accountSubmit").disabled = false;
   $("#accountToggle").hidden = false;
   backend.onAuthChange(async (user) => {
-    accountStatus.textContent = user ? `ඇතුළු වී ඇත: ${user.email}` : "Email කේතයෙන් ඇතුළු වී ඔබේ profile එක secure ලෙස save කරන්න.";
-    $("#sendCodeButton").hidden = Boolean(user);
-    $("#verifyButton").hidden = true;
-    $("#accountCodeField").hidden = true;
-    $("#logoutButton").hidden = !user;
-    $("#bookingsToggle").hidden = !user;
-    $("#accountEmail").disabled = Boolean(user);
-    if (!user) { currentProviderUid = null; if ($("#availabilityPanel")) $("#availabilityPanel").hidden = true; }
-    if (user) {
+    const signedIn = Boolean(user);
+    accountStatus.textContent = signedIn ? `ඇතුළු වී ඇත: ${user.mobile}` : "දුරකථන අංකය සහ PIN එකෙන් ඇතුළු වන්න.";
+    $("#mobileField").hidden = signedIn;
+    $("#pinField").hidden = signedIn;
+    $("#accountSubmit").hidden = signedIn;
+    $("#authLinks").hidden = signedIn;
+    if (signedIn) { $("#nicField").hidden = true; $("#pin2Field").hidden = true; }
+    $("#logoutButton").hidden = !signedIn;
+    $("#bookingsToggle").hidden = !signedIn;
+    if (!signedIn) { setAuthMode("login"); currentProviderUid = null; if ($("#availabilityPanel")) $("#availabilityPanel").hidden = true; }
+    if (signedIn) {
       try {
+        if (!$("#providerPhone").value) $("#providerPhone").value = user.mobile;
         const { user: saved } = await backend.getMe();
         if (!saved) return;
         currentProviderUid = saved.user_uid || null;
         if (saved.display_name) $("#providerName").value = saved.display_name;
-        if (saved.username) $("#providerUsername").value = saved.username;
+        if (saved.username && !String(saved.username).startsWith("member-")) $("#providerUsername").value = saved.username;
         if (saved.contact_phone) $("#providerPhone").value = saved.contact_phone;
         if (saved.district) $("#providerDistrict").value = saved.district;
         if (saved.provider_category) {

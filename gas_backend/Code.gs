@@ -1,18 +1,19 @@
 /**
  * Podi Podi Weda — Google Drive-first Apps Script backend.
  *
- * Authentication: passwordless email one-time-code (OTP). A code is emailed via
- * MailApp; verifying it mints an HMAC-signed session token. No Firebase, and no
- * passwords are ever stored.
+ * Authentication: mobile number + PIN. No email, SMS or WhatsApp is used, so
+ * sign-in costs nothing. The PIN is stored only as an HMAC hash. NIC is
+ * format-checked automatically and used for PIN reset and duplicate blocking.
+ * Login mints an HMAC-signed session token. No Firebase.
  *
  * Required Script Properties:
- *   ADMIN_KEY            (also used to sign sessions/OTP unless SESSION_SECRET is set)
+ *   ADMIN_KEY            (also signs sessions/PINs unless SESSION_SECRET is set)
  * Optional Script Properties:
  *   SESSION_SECRET       (dedicated signing key; falls back to ADMIN_KEY)
  *   ROOT_FOLDER_ID, USERS_FOLDER_ID, DB_SPREADSHEET_ID, MAX_UPLOAD_BYTES
  */
 
-const BUILD = '2026-09-29-drive-v9-self-service';
+const BUILD = '2026-09-29-drive-v10-mobile-pin';
 const DEFAULTS = Object.freeze({
   ROOT_FOLDER_ID: '1zwnXP1BQJudpeQSGpUPOob5GpEUL3mH5',
   USERS_FOLDER_ID: '193a7fFJaV9QfzK5QZj9jQ95U1OQ_-oVk',
@@ -31,7 +32,7 @@ const TABS = Object.freeze({
 });
 
 const HEADERS = Object.freeze({
-  DB_Users: ['user_uid','firebase_uid','email','username','display_name','roles_json','status','district','category','skills_json','phone','experience_years','rate_lkr','profile_folder_id','profile_json_file_id','created_at','updated_at','lat','lng','service_radius_km','engagement_types_json','days_per_week','rating_sum','rating_count'],
+  DB_Users: ['user_uid','firebase_uid','email','username','display_name','roles_json','status','district','category','skills_json','phone','experience_years','rate_lkr','profile_folder_id','profile_json_file_id','created_at','updated_at','lat','lng','service_radius_km','engagement_types_json','days_per_week','rating_sum','rating_count','pin_hash','nic'],
   DB_Documents: ['document_id','user_uid','document_type','original_filename','mime_type','size_bytes','drive_file_id','status','created_at'],
   DB_Jobs: ['job_id','client_uid','category','description','district','urgency','budget_lkr','requested_date','job_size','workers_needed','materials_by','access_slots_json','status','created_at','updated_at','lat','lng','engagement_type','estimated_hours','duration_days','days_per_week'],
   DB_RequestKeys: ['request_key','client_uid','job_id','created_at'],
@@ -112,8 +113,9 @@ function doPost(e) {
       requireAdmin_(request.adminKey);
       return json_({ok: true, data: setProviderStatus_(request.payload || {})});
     }
-    if (action === 'request_otp') return json_({ok: true, data: requestOtp_(request.payload || {})});
-    if (action === 'verify_otp') return json_({ok: true, data: verifyOtp_(request.payload || {})});
+    if (action === 'register') return json_({ok: true, data: registerAccount_(request.payload || {})});
+    if (action === 'login') return json_({ok: true, data: loginAccount_(request.payload || {})});
+    if (action === 'reset_pin') return json_({ok: true, data: resetPin_(request.payload || {})});
 
     const identity = verifySession_(request.sessionToken);
     const payload = request.payload || {};
@@ -236,7 +238,11 @@ function saveProfile_(identity, input) {
       lng: profile.lng,
       service_radius_km: profile.serviceRadiusKm,
       engagement_types_json: JSON.stringify(profile.engagementTypes),
-      days_per_week: profile.daysPerWeek
+      days_per_week: profile.daysPerWeek,
+      rating_sum: existing ? existing.rating_sum : 0,
+      rating_count: existing ? existing.rating_count : 0,
+      pin_hash: existing ? existing.pin_hash : '',
+      nic: existing ? existing.nic : ''
     };
     upsert_(usersSheet, 'firebase_uid', identity.localId, sheetRecord);
     audit_(userUid, 'profile.upsert', 'user', userUid, {status: record.status});
@@ -618,98 +624,104 @@ function sessionSecret_() {
   return PropertiesService.getScriptProperties().getProperty('SESSION_SECRET') || setting_('ADMIN_KEY');
 }
 
-function otpHash_(code) {
-  return Utilities.base64Encode(Utilities.computeHmacSha256Signature(String(code), sessionSecret_()));
+// ---- Mobile number + PIN authentication (no email, SMS or WhatsApp) ----
+// Identity is the mobile number. The PIN is the credential, stored only as an
+// HMAC hash. NIC is format-checked automatically and used for PIN reset and to
+// block duplicate accounts. Nothing is ever sent to the user, so cost is zero.
+
+function normMobile_(value) {
+  let s = clean_(value, 20).replace(/\D/g, '');
+  if (s.length === 11 && s.indexOf('94') === 0) s = '0' + s.slice(2);
+  if (s.length === 9 && s.indexOf('7') === 0) s = '0' + s;
+  if (!/^07[0-9]{8}$/.test(s)) throw new Error('Enter a valid mobile number in the form 07XXXXXXXX.');
+  return s;
 }
 
-function requestOtp_(input) {
-  const email = normEmail_(input.email);
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Enter a valid email address.');
-  const cache = CacheService.getScriptCache();
-  const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
-  try {
-    const globalKey = 'otp_global_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmm');
-    const globalCount = Number(cache.get(globalKey) || 0);
-    if (globalCount >= 30) throw new Error('Too many sign-in requests. Please try again later.');
-    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd');
-    const properties = PropertiesService.getScriptProperties();
-    let daily = {};
-    try { daily = JSON.parse(properties.getProperty('OTP_DAILY_STATE') || '{}'); } catch (error) {}
-    if (daily.date !== today) daily = {date: today, count: 0};
-    if (Number(daily.count || 0) >= 80) throw new Error('Today’s sign-in code limit has been reached. Please try tomorrow or contact support.');
-    if (cache.get('otp_rl_' + email)) throw new Error('Please wait a minute before requesting another code.');
-    const randomHex = Utilities.getUuid().replace(/-/g, '').slice(0, 12);
-    const code = String((parseInt(randomHex, 16) % 900000) + 100000);
-    cache.put('otp_' + email, JSON.stringify({hash: otpHash_(code), attempts: 0}), 600);
-    cache.put('otp_rl_' + email, '1', 60);
-    cache.put(globalKey, String(globalCount + 1), 120);
-    cache.put('otp_email_' + email, '1', 600);
-    daily.count = Number(daily.count || 0) + 1;
-    properties.setProperty('OTP_DAILY_STATE', JSON.stringify(daily));
-  } finally {
-    lock.releaseLock();
-  }
-  MailApp.sendEmail({
-    to: email,
-    subject: 'Podi Podi Weda — your verification code',
-    body: 'Your Podi Podi Weda verification code is ' + code + '.\n\nIt expires in 10 minutes. If you did not request it, ignore this email.'
-  });
-  audit_(email, 'auth.otp_request', 'auth', email, {});
-  return {ok: true};
+function validatePin_(pin) {
+  const p = clean_(pin, 10);
+  if (!/^[0-9]{4,6}$/.test(p)) throw new Error('PIN must be 4 to 6 digits.');
+  return p;
 }
 
-function verifyOtp_(input) {
-  const email = normEmail_(input.email);
-  const code = clean_(input.code, 6);
-  const cache = CacheService.getScriptCache();
-  const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
-  try {
-    if (!cache.get('otp_email_' + email)) throw new Error('Request a sign-in code first.');
-    const raw = cache.get('otp_' + email);
-    if (!raw) { cache.remove('otp_email_' + email); throw new Error('Code expired. Please request a new one.'); }
-    const record = JSON.parse(raw);
-    if (record.attempts >= 5) { cache.remove('otp_' + email); cache.remove('otp_email_' + email); throw new Error('Too many attempts. Request a new code.'); }
-    if (!secureEqual_(otpHash_(code), record.hash)) {
-      record.attempts += 1;
-      cache.put('otp_' + email, JSON.stringify(record), 600);
-      if (record.attempts >= 5) cache.remove('otp_email_' + email);
-      throw new Error(record.attempts >= 5 ? 'Too many attempts. Request a new code.' : 'Incorrect code. Please try again.');
-    }
-    cache.remove('otp_' + email);
-    cache.remove('otp_email_' + email);
-  } finally {
-    lock.releaseLock();
-  }
-  ensureAccountRecord_(email);
-  audit_(email, 'auth.otp_verify', 'auth', email, {});
-  return {sessionToken: signSession_(email, 30 * 24 * 3600), email: email};
+// Validates a Sri Lankan NIC by format and encoded day-of-year. Old form is 9
+// digits + V or X; new form is 12 digits. Returns the normalized NIC.
+function validateNic_(nic) {
+  const raw = clean_(nic, 20).toUpperCase().replace(/\s/g, '');
+  let dayField;
+  if (/^[0-9]{9}[VX]$/.test(raw)) dayField = parseInt(raw.substr(2, 3), 10);
+  else if (/^[0-9]{12}$/.test(raw)) dayField = parseInt(raw.substr(4, 3), 10);
+  else throw new Error('Enter a valid NIC number.');
+  const day = dayField > 500 ? dayField - 500 : dayField;
+  if (!(day >= 1 && day <= 366)) throw new Error('Enter a valid NIC number.');
+  return raw;
 }
 
-// Create a minimal private account record and dedicated Drive folder the first
-// time an email is verified. A provider profile upgrades this same record.
-function ensureAccountRecord_(email) {
-  const normalizedEmail = normEmail_(email);
+function pinHash_(mobile, pin) {
+  return Utilities.base64Encode(Utilities.computeHmacSha256Signature(mobile + '|' + pin, sessionSecret_()));
+}
+
+function registerAccount_(input) {
+  const mobile = normMobile_(input.mobile);
+  const pin = validatePin_(input.pin);
+  const nic = validateNic_(input.nic);
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    const existing = findBy_(TABS.USERS, 'firebase_uid', normalizedEmail);
-    if (existing) return existing;
+    if (findBy_(TABS.USERS, 'firebase_uid', mobile)) throw new Error('This mobile number already has an account. Please sign in.');
+    if (rows_(TABS.USERS).some(function(row) { return String(row.nic) === nic; })) throw new Error('This NIC is already registered.');
     const now = new Date().toISOString();
     const userUid = Utilities.getUuid();
     const username = 'member-' + userUid.slice(0, 8).toLowerCase();
     const folderInfo = ensureUserFolder_(userUid, username, '');
-    const profile = {schema_version: 1, user_uid: userUid, firebase_uid: normalizedEmail, email: normalizedEmail,
-      username: username, display_name: '', roles: ['client'], status: 'account_only', created_at: now, updated_at: now};
+    const profile = {schema_version: 1, user_uid: userUid, firebase_uid: mobile, email: '', username: username,
+      display_name: '', roles: ['client', 'provider'], status: 'account_only', created_at: now, updated_at: now};
     const profileFile = upsertJsonFile_(folderInfo.profileFolder, 'profile.json', profile);
-    const record = {user_uid: userUid, firebase_uid: normalizedEmail, email: normalizedEmail, username: username,
-      display_name: '', roles_json: JSON.stringify(['client']), status: 'account_only', district: '', category: '',
-      skills_json: '[]', phone: '', experience_years: 0, rate_lkr: 0, profile_folder_id: folderInfo.userFolder.getId(),
-      profile_json_file_id: profileFile.getId(), created_at: now, updated_at: now};
-    upsert_(sheet_(TABS.USERS), 'firebase_uid', normalizedEmail, record);
-    audit_(userUid, 'account.create', 'user', userUid, {method: 'email_otp'});
-    return record;
+    // NOTE: NIC is stored in plain text for the pilot. Encrypt or hash it before public scale.
+    const record = {user_uid: userUid, firebase_uid: mobile, email: '', username: username, display_name: '',
+      roles_json: JSON.stringify(['client', 'provider']), status: 'account_only', district: '', category: '',
+      skills_json: '[]', phone: mobile, experience_years: 0, rate_lkr: 0, profile_folder_id: folderInfo.userFolder.getId(),
+      profile_json_file_id: profileFile.getId(), created_at: now, updated_at: now, pin_hash: pinHash_(mobile, pin), nic: nic};
+    upsert_(sheet_(TABS.USERS), 'firebase_uid', mobile, record);
+    audit_(userUid, 'account.register', 'user', userUid, {method: 'mobile_pin'});
+    return {sessionToken: signSession_(mobile, 30 * 24 * 3600), mobile: mobile};
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function loginAccount_(input) {
+  const mobile = normMobile_(input.mobile);
+  const pin = validatePin_(input.pin);
+  const cache = CacheService.getScriptCache();
+  if (cache.get('pin_lock_' + mobile)) throw new Error('Too many wrong tries. Please wait 15 minutes.');
+  const user = findBy_(TABS.USERS, 'firebase_uid', mobile);
+  if (!user || !user.pin_hash) throw new Error('No account for this mobile number. Please register first.');
+  if (!secureEqual_(pinHash_(mobile, pin), String(user.pin_hash))) {
+    const tries = Number(cache.get('pin_try_' + mobile) || 0) + 1;
+    cache.put('pin_try_' + mobile, String(tries), 900);
+    if (tries >= 5) cache.put('pin_lock_' + mobile, '1', 900);
+    throw new Error('Wrong PIN. Please try again.');
+  }
+  cache.remove('pin_try_' + mobile);
+  audit_(user.user_uid, 'auth.login', 'user', user.user_uid, {});
+  return {sessionToken: signSession_(mobile, 30 * 24 * 3600), mobile: mobile};
+}
+
+function resetPin_(input) {
+  const mobile = normMobile_(input.mobile);
+  const nic = validateNic_(input.nic);
+  const newPin = validatePin_(input.newPin);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const user = findBy_(TABS.USERS, 'firebase_uid', mobile);
+    if (!user || String(user.nic) !== nic) throw new Error('The mobile number and NIC do not match.');
+    updateBy_(sheet_(TABS.USERS), 'firebase_uid', mobile, {pin_hash: pinHash_(mobile, newPin), updated_at: new Date().toISOString()});
+    const cache = CacheService.getScriptCache();
+    cache.remove('pin_lock_' + mobile);
+    cache.remove('pin_try_' + mobile);
+    audit_(user.user_uid, 'auth.pin_reset', 'user', user.user_uid, {});
+    return {sessionToken: signSession_(mobile, 30 * 24 * 3600), mobile: mobile};
   } finally {
     lock.releaseLock();
   }
@@ -754,8 +766,8 @@ function listPendingProviders_(admin) {
     });
 }
 
-function signSession_(email, ttlSeconds) {
-  const payload = Utilities.base64EncodeWebSafe(JSON.stringify({sub: normEmail_(email), exp: Date.now() + ttlSeconds * 1000}));
+function signSession_(subject, ttlSeconds) {
+  const payload = Utilities.base64EncodeWebSafe(JSON.stringify({sub: String(subject), exp: Date.now() + ttlSeconds * 1000}));
   const sig = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(payload, sessionSecret_()));
   return payload + '.' + sig;
 }
@@ -768,11 +780,13 @@ function verifySession_(token) {
   if (!secureEqual_(parts[1], expected)) throw new Error('Invalid session. Please sign in again.');
   const payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString());
   if (!payload.exp || payload.exp < Date.now()) throw new Error('Session expired. Please sign in again.');
-  return {localId: payload.sub, email: payload.sub, emailVerified: true};
+  return {localId: payload.sub, mobile: payload.sub, email: '', emailVerified: true};
 }
 
+// A valid session already proves the account. Kept as a no-op so existing
+// call sites stay unchanged after the move from email OTP to mobile + PIN.
 function requireVerifiedEmail_(identity) {
-  if (!identity.emailVerified) throw new Error('Please verify your email before continuing.');
+  if (!identity || !identity.localId) throw new Error('Please sign in first.');
 }
 
 function validateProfile_(input) {

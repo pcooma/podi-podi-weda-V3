@@ -26,7 +26,7 @@ function tokenExpiry(token) {
 function readSession() {
   try {
     const data = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
-    if (!data?.token || !data?.email) return null;
+    if (!data?.token || !data?.mobile) return null;
     if (data.exp && data.exp < Date.now()) { localStorage.removeItem(SESSION_KEY); return null; }
     return data;
   } catch (error) {
@@ -47,7 +47,7 @@ function setSession(data) {
 }
 
 function currentUser() {
-  return session ? { email: session.email } : null;
+  return session ? { mobile: session.mobile } : null;
 }
 
 async function post(action, body) {
@@ -102,10 +102,19 @@ window.PodiBackend = {
     listener(currentUser());
     return () => listeners.delete(listener);
   },
-  requestOtp: (email) => rawApi("request_otp", { email }),
-  async verifyOtp(email, code) {
-    const data = await rawApi("verify_otp", { email, code });
-    setSession({ token: data.sessionToken, email: data.email, exp: tokenExpiry(data.sessionToken) });
+  async register(mobile, pin, nic) {
+    const data = await rawApi("register", { mobile, pin, nic });
+    setSession({ token: data.sessionToken, mobile: data.mobile, exp: tokenExpiry(data.sessionToken) });
+    return data;
+  },
+  async login(mobile, pin) {
+    const data = await rawApi("login", { mobile, pin });
+    setSession({ token: data.sessionToken, mobile: data.mobile, exp: tokenExpiry(data.sessionToken) });
+    return data;
+  },
+  async resetPin(mobile, nic, newPin) {
+    const data = await rawApi("reset_pin", { mobile, nic, newPin });
+    setSession({ token: data.sessionToken, mobile: data.mobile, exp: tokenExpiry(data.sessionToken) });
     return data;
   },
   logout() { setSession(null); },
