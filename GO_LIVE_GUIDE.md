@@ -53,7 +53,8 @@ In Apps Script:
 2. Approve the requested permissions for Drive, Sheets, and **sending email as
    you** (this is what delivers the login codes).
 3. Confirm the master spreadsheet now has these tabs:
-   `DB_Users`, `DB_Documents`, `DB_Jobs`, `DB_Bookings`, `DB_Audit`.
+   `DB_Users`, `DB_Documents`, `DB_Jobs`, `DB_RequestKeys`, `DB_Bookings`,
+   `DB_Ratings`, `DB_Audit`.
 
 ## 4. Deploy the web app
 
@@ -63,7 +64,8 @@ In Apps Script:
 4. Deploy and copy the `/exec` URL.
 
 Test it in a browser: `YOUR_APPS_SCRIPT_EXEC_URL?action=health` should return
-JSON with `ok: true` and build `2026-09-28-drive-v2-otp`.
+JSON with `ok: true` and the expected `build` value from the current
+`gas_backend/Code.gs` source.
 
 ## 5. Point the website at the backend and go live
 
@@ -90,15 +92,17 @@ switches from preview mode to secure email-code accounts automatically.
 3. Enter the emailed code to sign in.
 4. Open **වැඩක් කරන්න**, complete the profile, and save it.
 5. Check `01_USERS_PRIVATE` in the [root Drive folder](https://drive.google.com/drive/folders/1zwnXP1BQJudpeQSGpUPOob5GpEUL3mH5).
-   A folder `USR-<id>__<username>` should exist with `profile.json` and the
-   standard private subfolders.
+   A folder `USR-<id>__<username>` should exist with `profile.json`.
+   Document subfolders are created only when a user uploads matching evidence.
 6. Upload a test certificate and confirm it appears in that user's private
    qualification folder and in `DB_Documents`.
 
-New providers start as `pending_review`. They are not returned by public
-provider search until approved.
+New providers are published immediately with an **unverified** status. Provider
+profiles and uploaded credentials are user-submitted and are not independently
+verified by the platform. Existing `pending_review` profiles also become
+searchable after this backend update; suspended/rejected profiles remain hidden.
 
-## 7. Approve a provider for pilot testing
+## 7. Optional provider moderation
 
 In Apps Script, obtain the user's `user_uid` from `DB_Users`, then run from the
 editor:
@@ -108,11 +112,12 @@ approveProvider('PASTE_USER_UID_HERE');
 ```
 
 This changes both the index row and the user's `profile.json` status to
-`approved`.
+`approved`, which marks the profile as verified. Do not use this for routine
+account creation; reserve it for deliberate verification or exceptional cases.
 
 ## 8. Test client data and booking persistence
 
-After approving a provider:
+After provider registration:
 
 1. Sign in as a client account (any email + code).
 2. Submit a service request → confirm a row in `DB_Jobs`.
@@ -132,6 +137,27 @@ recorded.
   `ADMIN_KEY` / `SESSION_SECRET` out of the browser and the repo.
 - `MailApp` daily send quota (100/day consumer, 1500/day Workspace) caps how
   many login codes can be sent per day — fine for a pilot, plan ahead for scale.
-- Approve providers manually until document review and malware scanning are
-  operational.
+- Do not describe user-submitted documents as verified. Identity checks are not
+  automated until an authorized authoritative identity service is integrated.
 - Test with non-sensitive files first.
+
+## Self-service accounts and identity assurance
+
+- Account setup is self-service. The first successful emailed one-time-code
+  login creates a private account row, internal UUID, `profile.json`, and a
+  dedicated Drive folder. A provider profile upgrades that same account/folder.
+  The normalized, verified email is the unique login key; a username is unique
+  for discovery but is not proof of identity.
+- NIC numbers and ID images are not requested as part of account creation. The
+  app does not independently prove that an account represents one unique legal
+  person. Do not advertise the profile as identity-verified.
+- If the user loses access to their email or has duplicate records, the app
+  currently has no automated recovery/merge workflow. Do not merge based only on
+  a typed NIC number or uploaded image. Add an automated authoritative identity
+  provider before offering that promise.
+- A person may choose to sign in with an email they can access; email is not
+  required on their public provider profile. Broader phone-based access requires
+  a budgeted OTP provider or an eligible official identity integration.
+- The code change removes the manual ID-review queue and its `DB_IdentityReviews`
+  sheet requirement. Run `setup` after updating Apps Script to initialize the
+  remaining tabs, then deploy a new web-app version.

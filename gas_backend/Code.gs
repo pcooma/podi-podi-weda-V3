@@ -12,7 +12,7 @@
  *   ROOT_FOLDER_ID, USERS_FOLDER_ID, DB_SPREADSHEET_ID, MAX_UPLOAD_BYTES
  */
 
-const BUILD = '2026-09-29-drive-v7-admin-idempotent';
+const BUILD = '2026-09-29-drive-v9-self-service';
 const DEFAULTS = Object.freeze({
   ROOT_FOLDER_ID: '1zwnXP1BQJudpeQSGpUPOob5GpEUL3mH5',
   USERS_FOLDER_ID: '193a7fFJaV9QfzK5QZj9jQ95U1OQ_-oVk',
@@ -39,18 +39,6 @@ const HEADERS = Object.freeze({
   DB_Ratings: ['rating_id','booking_id','rater_uid','ratee_uid','role','stars','comment','created_at'],
   DB_Audit: ['audit_id','actor_uid','action','target_type','target_id','metadata_json','created_at']
 });
-
-const USER_SUBFOLDERS = Object.freeze([
-  '00_PROFILE_AND_CONSENT',
-  '01_IDENTITY_PRIVATE',
-  '02_QUALIFICATIONS_CERTIFICATIONS',
-  '03_SKILLS_AND_WORK_HISTORY',
-  '04_PORTFOLIO',
-  '05_BOOKINGS_REVIEWS',
-  '06_PAYMENTS_COMMISSIONS',
-  '07_COMPLIANCE_INCIDENTS',
-  '99_AUDIT_EXPORTS'
-]);
 
 const BOOKING_SLOTS = ['morning', 'lunch', 'evening', 'night'];
 const OCCUPYING_STATUSES = ['confirmed', 'in_progress', 'blocked'];
@@ -196,7 +184,7 @@ function saveProfile_(identity, input) {
 
     const now = new Date().toISOString();
     const userUid = existing ? existing.user_uid : Utilities.getUuid();
-    const folderInfo = ensureUserFolder_(identity.localId, profile.username, existing && existing.profile_folder_id);
+    const folderInfo = ensureUserFolder_(userUid, profile.username, existing && existing.profile_folder_id);
     const record = {
       schema_version: 1,
       user_uid: userUid,
@@ -204,8 +192,11 @@ function saveProfile_(identity, input) {
       email: identity.email,
       username: profile.username,
       display_name: profile.displayName,
-      roles: ['provider'],
-      status: existing ? (existing.status === 'rejected' ? 'pending_review' : existing.status) : 'pending_review',
+      roles: ['client','provider'],
+      // Account creation is self-service. A provider can publish a profile
+      // immediately, but it remains explicitly unverified until an automated
+      // credential/identity source is integrated. Suspended accounts stay hidden.
+      status: existing && existing.status === 'suspended' ? 'suspended' : 'unverified',
       district: profile.district,
       category: profile.category,
       skills: profile.skills,
@@ -249,7 +240,7 @@ function saveProfile_(identity, input) {
     };
     upsert_(usersSheet, 'firebase_uid', identity.localId, sheetRecord);
     audit_(userUid, 'profile.upsert', 'user', userUid, {status: record.status});
-    CacheService.getScriptCache().remove('approved_providers');
+    CacheService.getScriptCache().remove('public_providers');
     return publicOwnProfile_(sheetRecord);
   } finally {
     lock.releaseLock();
@@ -360,7 +351,7 @@ function searchProviders_(identity, input) {
   const hasGeo = geoCoord_(input.lat, 90) !== '' && geoCoord_(input.lng, 180) !== '';
   const page = Math.max(1, Number(input.page || 1));
   const pageSize = Math.min(50, Math.max(1, Number(input.pageSize || 20)));
-  const filtered = approvedProviders_().filter(function(row) {
+  const filtered = publicProviders_().filter(function(row) {
     if (category && row.category !== category) return false;
     if (!hasGeo && district && row.district !== district) return false;
     if (hasGeo && row.lat !== '' && row.lat != null && row.lng !== '' && row.lng != null) {
@@ -400,7 +391,7 @@ function createBooking_(identity, input) {
   const job = findBy_(TABS.JOBS, 'job_id', clean_(input.jobId, 80));
   if (!job || job.client_uid !== identity.localId || job.status === 'cancelled') throw new Error('Job not found.');
   const provider = findBy_(TABS.USERS, 'user_uid', clean_(input.providerUid, 80));
-  if (!provider || provider.status !== 'approved') throw new Error('Provider is not available.');
+  if (!provider || ['unverified','approved','pending_review'].indexOf(provider.status) < 0) throw new Error('Provider is not available.');
   const startDate = clean_(input.startDate, 20) || String(job.requested_date || '').slice(0, 10);
   if (!startDate) throw new Error('Please choose a date.');
   const endDate = clean_(input.endDate, 20) || startDate;
@@ -591,7 +582,7 @@ function submitRating_(identity, input) {
         rating_count: Number(provider.rating_count || 0) + 1,
         updated_at: now
       });
-      CacheService.getScriptCache().remove('approved_providers');
+      CacheService.getScriptCache().remove('public_providers');
     }
   }
   audit_(raterUid, 'rating.submit', 'booking', booking.booking_id, {stars: stars});
@@ -612,7 +603,7 @@ function setProviderStatus_(input, adminEmail) {
   profile.updated_at = new Date().toISOString();
   file.setContent(JSON.stringify(profile, null, 2));
   audit_(adminEmail || 'admin', 'provider.status', 'user', userUid, {status: status});
-  CacheService.getScriptCache().remove('approved_providers');
+  CacheService.getScriptCache().remove('public_providers');
   return {userUid: userUid, status: status};
 }
 
@@ -641,12 +632,21 @@ function requestOtp_(input) {
     const globalKey = 'otp_global_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmm');
     const globalCount = Number(cache.get(globalKey) || 0);
     if (globalCount >= 30) throw new Error('Too many sign-in requests. Please try again later.');
+    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd');
+    const properties = PropertiesService.getScriptProperties();
+    let daily = {};
+    try { daily = JSON.parse(properties.getProperty('OTP_DAILY_STATE') || '{}'); } catch (error) {}
+    if (daily.date !== today) daily = {date: today, count: 0};
+    if (Number(daily.count || 0) >= 80) throw new Error('Today’s sign-in code limit has been reached. Please try tomorrow or contact support.');
     if (cache.get('otp_rl_' + email)) throw new Error('Please wait a minute before requesting another code.');
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const randomHex = Utilities.getUuid().replace(/-/g, '').slice(0, 12);
+    const code = String((parseInt(randomHex, 16) % 900000) + 100000);
     cache.put('otp_' + email, JSON.stringify({hash: otpHash_(code), attempts: 0}), 600);
     cache.put('otp_rl_' + email, '1', 60);
     cache.put(globalKey, String(globalCount + 1), 120);
-    cache.put('otp_email_' + email, '1', 86400);
+    cache.put('otp_email_' + email, '1', 600);
+    daily.count = Number(daily.count || 0) + 1;
+    properties.setProperty('OTP_DAILY_STATE', JSON.stringify(daily));
   } finally {
     lock.releaseLock();
   }
@@ -682,8 +682,37 @@ function verifyOtp_(input) {
   } finally {
     lock.releaseLock();
   }
+  ensureAccountRecord_(email);
   audit_(email, 'auth.otp_verify', 'auth', email, {});
   return {sessionToken: signSession_(email, 30 * 24 * 3600), email: email};
+}
+
+// Create a minimal private account record and dedicated Drive folder the first
+// time an email is verified. A provider profile upgrades this same record.
+function ensureAccountRecord_(email) {
+  const normalizedEmail = normEmail_(email);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const existing = findBy_(TABS.USERS, 'firebase_uid', normalizedEmail);
+    if (existing) return existing;
+    const now = new Date().toISOString();
+    const userUid = Utilities.getUuid();
+    const username = 'member-' + userUid.slice(0, 8).toLowerCase();
+    const folderInfo = ensureUserFolder_(userUid, username, '');
+    const profile = {schema_version: 1, user_uid: userUid, firebase_uid: normalizedEmail, email: normalizedEmail,
+      username: username, display_name: '', roles: ['client'], status: 'account_only', created_at: now, updated_at: now};
+    const profileFile = upsertJsonFile_(folderInfo.profileFolder, 'profile.json', profile);
+    const record = {user_uid: userUid, firebase_uid: normalizedEmail, email: normalizedEmail, username: username,
+      display_name: '', roles_json: JSON.stringify(['client']), status: 'account_only', district: '', category: '',
+      skills_json: '[]', phone: '', experience_years: 0, rate_lkr: 0, profile_folder_id: folderInfo.userFolder.getId(),
+      profile_json_file_id: profileFile.getId(), created_at: now, updated_at: now};
+    upsert_(sheet_(TABS.USERS), 'firebase_uid', normalizedEmail, record);
+    audit_(userUid, 'account.create', 'user', userUid, {method: 'email_otp'});
+    return record;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function adminLogin_(adminKey) {
@@ -787,7 +816,8 @@ function ensureUserFolder_(firebaseUid, username, existingFolderId) {
     const name = 'USR-' + firebaseUid.slice(0, 12).replace(/[^A-Za-z0-9_-]/g, '') + '__' + username;
     userFolder = childFolder_(parent, name);
   }
-  USER_SUBFOLDERS.forEach(function(name) { childFolder_(userFolder, name); });
+  // Create only the required profile folder here. Sensitive/evidence folders
+  // are created lazily when a user first uploads that document type.
   return {userFolder: userFolder, profileFolder: childFolder_(userFolder, '00_PROFILE_AND_CONSENT')};
 }
 
@@ -804,14 +834,14 @@ function upsertJsonFile_(folder, name, value) {
   return file;
 }
 
-function approvedProviders_() {
+function publicProviders_() {
   const cache = CacheService.getScriptCache();
-  const cached = cache.get('approved_providers');
+  const cached = cache.get('public_providers');
   if (cached) return JSON.parse(cached);
-  const records = rows_(TABS.USERS).filter(function(row) { return row.status === 'approved'; });
+  const records = rows_(TABS.USERS).filter(function(row) { return ['unverified','approved','pending_review'].indexOf(row.status) >= 0; });
   // CacheService rejects entries larger than its per-key limit. At pilot scale
   // this is an optimization only; a large provider list must still be usable.
-  try { cache.put('approved_providers', JSON.stringify(records), 300); } catch (error) { console.warn('Provider cache skipped:', error.message); }
+  try { cache.put('public_providers', JSON.stringify(records), 300); } catch (error) { console.warn('Provider cache skipped:', error.message); }
   return records;
 }
 
@@ -820,7 +850,7 @@ function publicProvider_(row) {
   return {
     id: row.user_uid, username: row.username, name: row.display_name, category: row.category,
     district: row.district, skills: jsonArray_(row.skills_json), experience: Number(row.experience_years || 0),
-    rate: Number(row.rate_lkr || 0), approved: true, tier: 't2_profile', availability: 'available',
+    rate: Number(row.rate_lkr || 0), approved: row.status === 'approved', tier: row.status === 'approved' ? 't2_profile' : 't0_phone', verificationStatus: row.status === 'approved' ? 'verified' : 'unverified', availability: 'available',
     lat: row.lat === '' || row.lat == null ? null : Number(row.lat),
     lng: row.lng === '' || row.lng == null ? null : Number(row.lng),
     radiusKm: Number(row.service_radius_km || 15) || 15, perKmRate: 45, workingDays: [1, 2, 3, 4, 5, 6],
@@ -829,7 +859,7 @@ function publicProvider_(row) {
     rating: Number(row.rating_count || 0) ? Number(row.rating_sum || 0) / Number(row.rating_count) : 0,
     ratingCount: Number(row.rating_count || 0), jobsCompleted: 0, responseRate: 0.6, teamSize: 1,
     availableSlots: ['morning','lunch','evening'], supplyCapabilities: ['labour_only'],
-    portfolio: 'Verified provider profile'
+    portfolio: ''
   };
 }
 

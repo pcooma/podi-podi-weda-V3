@@ -2364,7 +2364,7 @@ function renderAdmin() {
           <h3>${escapeHTML(provider.name)}</h3>
           <p class="muted">${escapeHTML(categoryBySlug(provider.category).si)} · ${escapeHTML(provider.workerType || categoryBySlug(provider.category).workerType)} · ${escapeHTML(provider.tier)} · ${escapeHTML(provider.requiredEvidence || categoryBySlug(provider.category).evidence)}</p>
         </div>
-        <span class="status-pill">${provider.approved ? "අනුමතයි" : "පරීක්ෂාවට"}</span>
+        <span class="status-pill">${provider.approved ? "තහවුරු කර ඇත" : "තහවුරු කර නැත"}</span>
       </div>
       <div class="row-actions">
         <button class="primary-action" data-approve="${provider.id}" type="button">අනුමත කරන්න</button>
@@ -2529,11 +2529,11 @@ async function addProvider() {
   const statusMessage = $("#providerStatusMessage");
   if (statusMessage) {
     statusMessage.hidden = false;
-    statusMessage.textContent = "ලියාපදිංචිය සාර්ථකයි! ඔබේ තොරතුරු පරීක්ෂා කළ පසු ගැළපෙන වැඩක් ආ විට අපි ඔබ හා සම්බන්ධ වන්නෙමු.";
+    statusMessage.textContent = "ලියාපදිංචිය සාර්ථකයි. ඔබේ පැතිකඩ දැන් සෙවුම්වල පෙන්වයි. ඔබ ලබාදුන් තොරතුරු සහතික හෝ හැඳුනුම්පත් ලෙස තහවුරු කර නැත.";
   }
   $("#providerForm").reset();
   renderRoleRegistration();
-  toast("ලියාපදිංචිය යොමු කළා. පරීක්ෂා කිරීමෙන් පසු දැනුම් දෙන්නෙමු.");
+  toast("ලියාපදිංචිය සාර්ථකයි. ඔබේ පැතිකඩ සෙවුම්වල පෙන්වයි.");
 }
 
 function updateProviderRates(providerId, mode) {

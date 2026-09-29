@@ -50,8 +50,9 @@
           </div>
           <form id="accountForm" class="account-form">
             <label>
-              <span>Email</span>
+              <span>පිවිසුම් email</span>
               <input id="accountEmail" type="email" autocomplete="email" required disabled>
+              <small class="form-note">කේතය ලබාගැනීමට භාවිත කරයි. මෙම email එක ඔබේ public පැතිකඩේ නොපෙන්වයි.</small>
             </label>
             <label id="accountCodeField" hidden>
               <span>එවන ලද කේතය (6 ඉලක්කම්)</span>
@@ -404,7 +405,7 @@
                   <input id="providerDocs" type="file" multiple accept="image/*,.pdf" disabled>
                 </label>
                 </details>
-                <p class="form-note">ඔබේ ලියාපදිංචිය පරීක්ෂා කළ පසු, ඔබට ගැළපෙන වැඩක් ආ විට අපි ඔබ හා සම්බන්ධ වන්නෙමු.</p>
+                <p class="form-note">ලියාපදිංචි වූ පසු ඔබේ සේවා පැතිකඩ සෙවුම්වල පෙන්වයි. සහතික/හැඳුනුම්පත් ස්වයංක්‍රීයව තහවුරු කර නැත.</p>
                 <button class="primary-action primary-large" id="providerSubmit" type="submit" disabled>ලියාපදිංචි වන්න</button>
                 <div id="providerStatusMessage" class="success-message" hidden></div>
               </form>
@@ -504,7 +505,7 @@
 
     <script>window.PODI_PODI_CONFIG = window.PODI_PODI_CONFIG || null;</script>
     <script src="config.js"></script>
-    <script src="app.js?v=36"></script>
-    <script type="module" src="backend-client.js?v=6"></script>
+    <script src="app.js?v=38"></script>
+    <script type="module" src="backend-client.js?v=8"></script>
   </body>
 </html>
