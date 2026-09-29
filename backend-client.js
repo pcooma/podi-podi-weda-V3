@@ -4,6 +4,7 @@
 const config = window.PODI_PODI_CONFIG;
 const listeners = new Set();
 const SESSION_KEY = "podi_session";
+const ADMIN_SESSION_KEY = "podi_admin_session";
 
 // The site is "live" only when an Apps Script URL is present AND the operator
 // has explicitly opted in with `backend: "live"` in config.js. Until then the
@@ -123,7 +124,34 @@ window.PodiBackend = {
   getBookings: () => api("get_bookings"),
   revealContact: (bookingId) => api("reveal_contact", { method: "POST", body: JSON.stringify({ bookingId }) }),
   blockDates: (block) => api("block_dates", { method: "POST", body: JSON.stringify(block) }),
-  submitRating: (rating) => api("submit_rating", { method: "POST", body: JSON.stringify(rating) })
+  submitRating: (rating) => api("submit_rating", { method: "POST", body: JSON.stringify(rating) }),
+  adminLogin: async (adminKey) => {
+    const data = await rawApi("admin_login", {adminKey});
+    try { localStorage.setItem(ADMIN_SESSION_KEY, data.adminSessionToken); } catch (error) {}
+    return data;
+  },
+  adminLogout() { try { localStorage.removeItem(ADMIN_SESSION_KEY); } catch (error) {} },
+  adminSessionActive() {
+    try {
+      const token = localStorage.getItem(ADMIN_SESSION_KEY) || "";
+      return Boolean(token && tokenExpiry(token) > Date.now());
+    } catch (error) { return false; }
+  },
+  adminListPending: () => adminApi("admin_list_pending"),
+  adminUpdateProvider: (userUid, status) => adminApi("admin_update_provider", {payload: {userUid, status}})
 };
+
+async function adminApi(action, body = {}) {
+  let token = null;
+  try { token = localStorage.getItem(ADMIN_SESSION_KEY); } catch (error) {}
+  const response = await fetch(config.appsScriptUrl, {
+    method: "POST",
+    headers: {"Content-Type": "text/plain;charset=utf-8"},
+    body: JSON.stringify({action, adminSessionToken: token, ...body})
+  });
+  const envelope = await response.json().catch(() => ({}));
+  if (!response.ok || envelope.ok === false) throw new Error(envelope.error || `Request failed (${response.status})`);
+  return envelope.data;
+}
 
 window.dispatchEvent(new CustomEvent("podi-backend-ready"));

@@ -1351,6 +1351,10 @@ const initialState = {
 
 let state = loadState();
 
+function saveLocalDemoState() {
+  if (!secureBackendConfigured()) saveState();
+}
+
 function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return structuredClone(initialState);
@@ -1609,9 +1613,10 @@ function isRemoteFriendlyProvider(provider) {
 function estimateDistanceKm(provider, job) {
   if (isRemoteFriendlyProvider(provider)) return 0;
   // Real point-to-point distance when both sides shared GPS.
-  if (Number.isFinite(provider.lat) && Number.isFinite(provider.lng) && Number.isFinite(job.lat) && Number.isFinite(job.lng)) {
+  if ([provider.lat, provider.lng, job.lat, job.lng].every((value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)))) {
     return Math.round(haversineKm({ lat: job.lat, lng: job.lng }, { lat: provider.lat, lng: provider.lng }) * 10) / 10;
   }
+  if (job.lat != null && job.lng != null && (provider.lat == null || provider.lng == null)) return Number.POSITIVE_INFINITY;
   if (!job.district || !provider.district) return Number(provider.distanceKm || 0);
   return districtDistanceKm[job.district]?.[provider.district] ?? Number(provider.distanceKm || 0);
 }
@@ -1741,22 +1746,23 @@ function evaluateProvider(provider, job, classification) {
   const quoteOnly = isQuoteOnlyProvider(provider, classification);
   const marketOffer = calculateBestMarketOffer(provider, job, classification);
 
-  if (!provider.approved) reasons.push("admin approval නැහැ");
-  if (provider.suspended || provider.blacklisted) reasons.push("suspend/blacklist flag ඇත");
+  if (!provider.approved) reasons.push("ලියාපදිංචිය තවම පරීක්ෂා කර නැහැ");
+  if (provider.suspended || provider.blacklisted) reasons.push("දැනට සේවාව ලබාගත නොහැක");
   if (provider.availability === "offline") reasons.push("දැනට offline");
   if (provider.category !== classification.category.slug) reasons.push("වැඩේ වර්ගය ගැළපෙන්නේ නැහැ");
   if (tierRank[provider.tier] < tierRank[classification.minTier]) reasons.push(`${translateTier(classification.minTier)} මට්ටම අවශ්‍යයි`);
   if (!isRemoteFriendlyProvider(provider) && marketOffer.distanceKm > provider.radiusKm) reasons.push("සේවා සපයන ප්‍රදේශයෙන් පිටත");
-  if (!isRemoteFriendlyProvider(provider) && job.district && provider.district && job.district !== provider.district && provider.radiusKm < 30) reasons.push("ප්‍රදේශය ගැළපෙන්නේ නැහැ");
+  if (!isRemoteFriendlyProvider(provider) && job.lat != null && job.lng != null && (provider.lat == null || provider.lng == null)) reasons.push("සේවා සපයන්නාගේ නිශ්චිත ස්ථානය ලබා දී නැහැ");
+  if (!isRemoteFriendlyProvider(provider) && job.district && provider.district && job.district !== provider.district && provider.radiusKm < 30 && !(job.lat != null && provider.lat != null)) reasons.push("ප්‍රදේශය ගැළපෙන්නේ නැහැ");
   if (!hasCalendarFit(provider, job)) reasons.push("තෝරාගත් දිනයේ availability නැහැ");
-  if (!hasSlotFit(provider, job)) reasons.push("ඔබ දාපු වේලාවන්ට provider free නැහැ");
+  if (!hasSlotFit(provider, job)) reasons.push("ඔබ සඳහන් කළ වේලාවට සේවා සපයන්නා ලබාගත නොහැක");
   if (!hasMaterialFit(provider, job)) reasons.push("බඩු/උපකරණ සපයන හැකියාව ගැළපෙන්නේ නැහැ");
   const jobEngagement = job.engagementType || "day";
   const providerEngagements = provider.engagementTypes || ["quick", "day"];
   if (!providerEngagements.includes(jobEngagement)) reasons.push("මෙම ආකාරයේ (කාල) වැඩ භාරගන්නේ නැහැ");
   if (jobEngagement === "full_time" && Number(job.daysPerWeek || 0) > 0 && Number(provider.daysPerWeek || 0) > 0 && Number(provider.daysPerWeek) < Number(job.daysPerWeek)) reasons.push("සතියකට අවශ්‍ය දින ගණනට ලබාගත නොහැක");
   if (workersNeeded > 1 && teamSize < workersNeeded) reasons.push(`අය ${workersNeeded}ක් ඕනේ; ප්‍රොෆයිල් එකේ ඉන්නේ ${teamSize}යි`);
-  if (job.budget && !quoteOnly && marketOffer.total > job.budget * 1.35) reasons.push("client දෙන මිලට වඩා provider offer එක වැඩියි");
+  if (job.budget && !quoteOnly && marketOffer.total > job.budget * 1.35) reasons.push("ඔබ සඳහන් කළ මුදලට වඩා ගාස්තුව වැඩියි");
 
   if (reasons.length) return { eligible: false, provider, reasons };
 
@@ -1808,7 +1814,7 @@ function evaluateProvider(provider, job, classification) {
       marketOffer,
       effectiveRate: marketOffer.total,
       selectedSlot: marketOffer.slot,
-      rationale: `${classification.skillTags.slice(0, 2).join(", ")} කුසලතා, ${marketOffer.slotLabel} slot එක, ${marketOffer.distanceKm} km දුර සහ ${quoteOnly ? "quote workflow" : `රු. ${marketOffer.total.toLocaleString()} market offer එක`} නිසා ගැලපේ.`
+      rationale: `${classification.skillTags.slice(0, 2).join(", ")} කුසලතා, ${marketOffer.slotLabel} වේලාව, ${marketOffer.distanceKm} km දුර සහ ${quoteOnly ? "මිල ගණන් ලබාගත හැකි වීම" : `රු. ${marketOffer.total.toLocaleString()}ක ගාස්තුව`} නිසා ගැලපේ.`
     }
   };
 }
@@ -1839,8 +1845,8 @@ function diagnoseSupplyGap(job, providers = state.providers) {
     candidateCount: attempts.length,
     topReasons: sameCategory.length ? topReasons : ["මෙම සේවා වර්ගයට seed/approved providers නැහැ"],
     action: sameCategory.length
-      ? "මෙම කාණ්ඩයේ providers ඇත, නමුත් budget / tier / availability / time-slot / materials / team-size filter වලින් ඉවත් වුණා."
-      : "මෙම කාණ්ඩයට අනුමත providers බඳවා ගැනීම පළමුව අවශ්‍යයි."
+      ? "ගාස්තුව, ලබාගත හැකි වේලාව, සේවා ප්‍රදේශය හෝ කණ්ඩායමේ ප්‍රමාණය නොගැළපීම නිසා ප්‍රතිඵල නොපෙන්වයි."
+      : "මෙම සේවාව සඳහා තවම සේවා සපයන්නන් ලියාපදිංචි වී නැත."
   };
 }
 
@@ -1863,14 +1869,15 @@ async function createJob(formData) {
     estimatedHours: formData.estimatedHours || 0,
     durationDays: formData.durationDays || 0,
     daysPerWeek: formData.daysPerWeek || 0,
-    lat: Number.isFinite(formData.lat) ? formData.lat : null,
-    lng: Number.isFinite(formData.lng) ? formData.lng : null,
+    lat: formData.lat !== null && formData.lat !== undefined && Number.isFinite(Number(formData.lat)) ? Number(formData.lat) : null,
+    lng: formData.lng !== null && formData.lng !== undefined && Number.isFinite(Number(formData.lng)) ? Number(formData.lng) : null,
     status: "matching",
     classification,
     createdAt: new Date().toISOString()
   };
   let providerPool = state.providers;
   const backend = window.PodiBackend;
+  let savedToBackend = false;
   if (backend?.isConfigured()) {
     if (!backend.currentUser()) {
       toast("ඉල්ලීම ඉදිරියට යාමට ගිණුමට ඇතුළු වන්න.");
@@ -1893,11 +1900,18 @@ async function createJob(formData) {
         durationDays: job.durationDays,
         daysPerWeek: job.daysPerWeek,
         lat: job.lat,
-        lng: job.lng
+        lng: job.lng,
+        requestKey: formData.requestKey
       });
       job.id = savedJob.id;
-      const providerResult = await backend.searchProviders({category: classification.category.slug, district: job.district, lat: job.lat, lng: job.lng, page: 1, pageSize: 50});
-      providerPool = Array.isArray(providerResult) ? providerResult : (providerResult.items || []);
+      savedToBackend = true;
+      providerPool = [];
+      for (let page = 1; page <= 20; page += 1) {
+        const providerResult = await backend.searchProviders({category: classification.category.slug, district: job.district, lat: job.lat, lng: job.lng, page, pageSize: 50});
+        const items = Array.isArray(providerResult) ? providerResult : (providerResult.items || []);
+        providerPool.push(...items);
+        if (Array.isArray(providerResult) || !providerResult.hasMore || !items.length) break;
+      }
     } catch (error) {
       toast(error.message || "ඉල්ලීම සුරැකීමට නොහැකි විය. නැවත උත්සාහ කරන්න.");
       return;
@@ -1932,9 +1946,11 @@ async function createJob(formData) {
       detail: `${job.diagnostic.action} Filter notes: ${job.diagnostic.topReasons.join(" / ") || "category supply නැහැ"}.`
     });
   }
-  state.audit.push(`job.classified:${job.id}`);
-  state.audit.push(`matches.persisted:${job.matches.length}`);
-  saveState();
+  if (!savedToBackend) {
+    state.audit.push(`job.classified:${job.id}`);
+    state.audit.push(`matches.persisted:${job.matches.length}`);
+    saveLocalDemoState();
+  }
   render();
   toast(job.matches.length ? `ගැළපෙන සේවා සපයන්නන් ${job.matches.length}ක් සොයාගන්නා ලදී.` : "දැනට ගැළපෙන සේවා සපයන්නන් නොමැත. අපි ඔබේ ඉල්ලීම පරීක්ෂා කරමින් සිටිමු.");
   setTimeout(() => {
@@ -2075,7 +2091,7 @@ function renderAiPanel(job) {
           <span class="tag">අය ${c.workersNeeded || 1}ක්</span>
           <span class="tag">${formatSlots(c.accessSlots)}</span>
       </div>
-      ${c.accessInfo ? `<p class="muted"><strong>Access:</strong> ${escapeHTML(c.accessInfo)}</p>` : ""}
+      ${c.accessInfo ? `<p class="muted"><strong>විශේෂ විස්තර:</strong> ${escapeHTML(c.accessInfo)}</p>` : ""}
       <details class="inline-details"><summary>සේවා සපයන්නාගෙන් අහන්න ඕන දේ</summary><ol class="question-list">${c.questions.map((q) => `<li>${q}</li>`).join("")}</ol></details>
     </div>
   `;
@@ -2093,17 +2109,17 @@ function renderShortlist(job) {
   count.textContent = `ගැලපීම් ${job.matches.length}`;
   if (!job.matches.length) {
     list.className = "provider-grid empty-state";
-    list.innerHTML = `
+  list.innerHTML = `
       <div class="ai-card">
         <h3>දැනට ගැලපෙන අය නැහැ</h3>
-        <p>මෙම ඉල්ලීම ${job.classification.category.si} ලෙස හඳුනාගත්තා. කාර්යාලයේ manual matching / workforce recruitment queue එකට යවා ඇත.</p>
+        <p>මෙම ඉල්ලීම ${job.classification.category.si} සේවාවට අදාළයි. ඔබට ගැළපෙන සේවා සපයන්නන් සොයා ගැනීමට අපි කටයුතු කරමින් සිටිමු.</p>
         <div class="ai-meta">
           <span class="tag">${translateJobType(job.classification.jobType)}</span>
           <span class="tag">${translateTier(job.classification.minTier)}</span>
         </div>
         ${job.diagnostic ? `
           <div class="gap-diagnostic">
-            <strong>Supply gap</strong>
+            <strong>සේවා සපයන්නන් සොයමින්</strong>
             <p>${job.diagnostic.action}</p>
             <ul>${(job.diagnostic.topReasons.length ? job.diagnostic.topReasons : ["මෙම කාණ්ඩයේ providers තව බඳවාගත යුතුයි"]).map((item) => `<li>${item}</li>`).join("")}</ul>
           </div>
@@ -2384,34 +2400,25 @@ async function bookProvider(jobId, providerId) {
   if (!job) return;
   const provider = job.matches.find((item) => item.id === providerId);
   if (!provider) return;
-  if (job.status === "booked") { toast("ඉල්ලීම දැනටමත් booking කර ඇත."); return; }
+  if (["booked", "booking_requested"].includes(job.status)) { toast("මෙම ඉල්ලීම සඳහා වෙන් කිරීමක් දැනටමත් ඇත."); return; }
   const alreadyBooked = state.bookings.some(b => b.jobId === jobId && b.providerId === providerId);
   if (alreadyBooked) { toast(`${provider.name} සමඟ දැනටමත් booking කර ඇත.`); return; }
   const agreedAmount = provider.quoteOnly ? 0 : Number(provider.effectiveRate || provider.rate || 0);
-  const commissionAmount = provider.quoteOnly ? 0 : Math.round(agreedAmount * 0.06);
   try {
-    await window.PodiBackend.createBooking({jobId, providerUid: providerId, agreedAmountLkr: agreedAmount});
+    const saved = await window.PodiBackend.createBooking({jobId, providerUid: providerId, agreedAmountLkr: agreedAmount});
+    state.bookings.push({
+      id: saved.id, jobId, providerId, status: saved.status,
+      agreedAmount, selectedSlot: provider.selectedSlot || provider.marketOffer?.slot || null
+    });
+    job.status = saved.status === "confirmed" ? "booked" : saved.status === "requested" ? "booking_requested" : job.status;
+    await openBookingsList();
   } catch (error) {
-    toast(error.message || "Booking request එක save කළ නොහැකි විය.");
+    toast(error.message || "වෙන් කිරීමේ ඉල්ලීම සුරැකීමට නොහැකි විය.");
     return;
   }
-  state.bookings.push({
-    id: `booking-${Date.now()}`,
-    jobId,
-    providerId,
-    status: provider.quoteOnly ? "quote_pending" : "confirmed",
-    agreedAmount,
-    commissionAmount,
-    selectedSlot: provider.selectedSlot || provider.marketOffer?.slot || null,
-    distanceCharge: provider.marketOffer?.distanceCharge || 0
-  });
-  job.status = "booked";
-  state.audit.push(`booking.confirmed:${jobId}:${providerId}`);
-  saveState();
-  render();
-  toast(provider.quoteOnly
-    ? `${provider.name} ට quote ඉල්ලීම යවන ලදී. ඔවුන් ඔබව ඉදිරියේ අමතනු ඇත.`
-    : `Booking confirmed. Commission: රු. ${commissionAmount.toLocaleString()}`);
+  state.audit.push(`booking.${saved.status}:${jobId}:${providerId}`);
+  if (saved.status === "requested") toast(`${provider.name} වෙත වෙන් කිරීමේ ඉල්ලීම යවා ඇත. තහවුරු කිරීම ලැබුණු පසු දැනුම් දෙන්නෙමු.`);
+  else toast("වෙන් කිරීම දැනටමත් පවතී.");
 }
 
 async function addProvider() {
@@ -2485,7 +2492,7 @@ async function addProvider() {
   if (backend?.isConfigured()) {
     if (!backend.currentUser()) { toast("ඔබේ තොරතුරු සුරැකීමට ගිණුමට ඇතුළු වන්න."); return; }
     try {
-      await backend.saveProfile({
+      const savedProfile = await backend.saveProfile({
         displayName: provider.name,
         username,
         phone,
@@ -2505,14 +2512,19 @@ async function addProvider() {
       const documents = [...$("#providerDocs").files];
       const documentType = $("#providerDocumentType").value;
       for (const file of documents) await backend.uploadDocument(file, documentType);
+      provider.id = savedProfile.user_uid;
+      provider.approved = savedProfile.status === "approved";
+      currentProviderUid = savedProfile.user_uid;
     } catch (error) {
       toast(error.message || "ඔබේ තොරතුරු සුරැකීමට නොහැකි විය — නැවත උත්සාහ කරන්න.");
       return;
     }
   }
-  state.providers.unshift(provider);
-  state.audit.push(`provider.submitted:${provider.id}`);
-  saveState();
+  if (!backend?.isConfigured()) {
+    state.providers.unshift(provider);
+    state.audit.push(`provider.submitted:${provider.id}`);
+    saveLocalDemoState();
+  }
   render();
   const statusMessage = $("#providerStatusMessage");
   if (statusMessage) {
@@ -2551,7 +2563,7 @@ function updateProviderRates(providerId, mode) {
     provider.quoteOnly = professionalCategorySlugs.includes(provider.category) || provider.rate === 0;
   }
   state.audit.push(`provider.rates.updated:${provider.id}:${mode}`);
-  saveState();
+  saveLocalDemoState();
   render();
   toast("Rates සහ availability update කළා.");
 }
@@ -2589,7 +2601,7 @@ document.addEventListener("click", (event) => {
     const lead = state.leads.find((item) => item.id === responseButton.dataset.respond);
     lead.status = responseButton.dataset.status;
     state.audit.push(`lead.${lead.status}:${lead.id}`);
-    saveState();
+    saveLocalDemoState();
     render();
     toast(lead.status === "accepted" ? "ඔබ සේවාව භාරගත් බව සටහන් විය." : "ඔබ සේවාව ප්‍රතික්ෂේප කළ බව සටහන් විය.");
   }
@@ -2605,7 +2617,7 @@ document.addEventListener("click", (event) => {
     provider.approved = true;
     provider.tier = categoryBySlug(provider.category).minTier || "t1_id";
     state.audit.push(`doc.verify:${provider.id}`);
-    saveState();
+    saveLocalDemoState();
     render();
     toast("Provider අනුමත කර විශ්වාස මට්ටම යාවත්කාලීන කළා.");
   }
@@ -2613,7 +2625,7 @@ document.addEventListener("click", (event) => {
   const auditButton = event.target.closest("[data-audit]");
   if (auditButton) {
     state.audit.push(`pii.view:${auditButton.dataset.audit}`);
-    saveState();
+    saveLocalDemoState();
     render();
     toast("Sensitive document view was audit logged.");
   }
@@ -2623,7 +2635,7 @@ document.addEventListener("click", (event) => {
     const dispute = state.disputes.find((item) => item.id === resolveButton.dataset.resolve);
     dispute.status = "resolved";
     state.audit.push(`dispute.resolve:${dispute.id}`);
-    saveState();
+    saveLocalDemoState();
     render();
     toast("Dispute resolved.");
   }
@@ -2645,6 +2657,7 @@ on("#jobForm", "submit", async (event) => {
   const jobCategory = $("#jobCategory").value;
   const selectedJobSkills = $all("input[name='jobSkill']:checked").map((input) => input.value);
   await createJob({
+    requestKey: (window.crypto?.randomUUID?.() || `req-${Date.now()}-${Math.random().toString(36).slice(2)}`),
     description: $("#jobDescription").value,
     district: $("#jobDistrict").value,
     urgency: $("#jobUrgency").value,
@@ -2708,6 +2721,82 @@ on("#jobCategory", "change", () => {
 on("#accountToggle", "click", () => {
   const panel = $("#accountPanel");
   panel.hidden = !panel.hidden;
+});
+
+on("#adminToggle", "click", () => {
+  const panel = $("#adminPanel");
+  panel.hidden = !panel.hidden;
+  if (!panel.hidden) syncAdminPanel();
+});
+
+on("#adminForm", "submit", async (event) => {
+  event.preventDefault();
+  const button = $("#adminLoginButton");
+  button.disabled = true;
+  try {
+    await window.PodiBackend.adminLogin($("#adminKey").value);
+    $("#adminKey").value = "";
+    $("#adminStatus").textContent = "පරීක්ෂාවට ඇති ලියාපදිංචි කිරීම්";
+    $("#adminLogoutButton").hidden = false;
+    await renderAdminQueue();
+  } catch (error) {
+    toast("පිවිසීමට නොහැකි විය. යතුර පරීක්ෂා කර නැවත උත්සාහ කරන්න.");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+on("#adminLogoutButton", "click", () => {
+  window.PodiBackend.adminLogout();
+  $("#adminQueue").replaceChildren();
+  $("#adminStatus").textContent = "පරිපාලක යතුරෙන් ඇතුළු වන්න.";
+  $("#adminLogoutButton").hidden = true;
+});
+
+function syncAdminPanel() {
+  const token = window.PodiBackend?.adminSessionActive?.() || false;
+  $("#adminForm").hidden = token;
+  $("#adminLogoutButton").hidden = !token;
+  if (token) {
+    $("#adminStatus").textContent = "පරීක්ෂාවට ඇති ලියාපදිංචි කිරීම්";
+    renderAdminQueue();
+  }
+}
+
+syncAdminPanel();
+
+async function renderAdminQueue() {
+  const queue = $("#adminQueue");
+  queue.innerHTML = `<p class="muted">පූරණය වෙමින්...</p>`;
+  try {
+    const providers = await window.PodiBackend.adminListPending();
+    queue.innerHTML = providers.length ? providers.map((provider) => `
+      <article class="admin-row">
+        <div><strong>${escapeHTML(provider.displayName)}</strong>
+        <p>${escapeHTML((categories.find((item) => item.slug === provider.category) || {si: "වෙනත් සේවාවක්"}).si)} · ${escapeHTML(provider.district)} · ${escapeHTML(provider.phone)}</p>
+          <p>${escapeHTML(provider.evidenceSummary || "අමතර විස්තර නැත")}</p>
+        </div>
+        <div class="row-actions">
+          <button class="primary-action" type="button" data-admin-provider="${escapeHTML(provider.userUid)}" data-admin-status="approved">අනුමත කරන්න</button>
+          <button class="ghost-action" type="button" data-admin-provider="${escapeHTML(provider.userUid)}" data-admin-status="rejected">ප්‍රතික්ෂේප කරන්න</button>
+        </div>
+      </article>`).join("") : `<p class="muted">පරීක්ෂා කිරීමට ලියාපදිංචි කිරීම් නැත.</p>`;
+  } catch (error) {
+    queue.innerHTML = `<p class="muted">ලැයිස්තුව ලබාගත නොහැකි විය.</p>`;
+  }
+}
+
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-admin-provider]");
+  if (!button) return;
+  button.disabled = true;
+  try {
+    await window.PodiBackend.adminUpdateProvider(button.dataset.adminProvider, button.dataset.adminStatus);
+    await renderAdminQueue();
+  } catch (error) {
+    toast("වෙනස සුරැකීමට නොහැකි විය.");
+    button.disabled = false;
+  }
 });
 
 function showCodeStep(waiting) {
@@ -2819,7 +2908,7 @@ function initializeBackendStatus() {
           const engSet = new Set(saved.engagement_types);
           $all("input[name='providerEngagement']").forEach((input) => { input.checked = engSet.has(input.value); });
         }
-        if (Number.isFinite(saved.lat) && Number.isFinite(saved.lng)) {
+    if (saved.lat !== null && saved.lat !== undefined && saved.lng !== null && saved.lng !== undefined && Number.isFinite(Number(saved.lat)) && Number.isFinite(Number(saved.lng))) {
           setLocationField($("#providerLat").closest("[data-location]"), saved.lat, saved.lng);
         }
         renderAvailabilityCalendar();
@@ -2972,7 +3061,7 @@ const PAYMENT_NOTES = {
   cash_on_completion: "වැඩ අවසන් වූ පසු සේවා සපයන්නාට මුදලින් ගෙවන්න."
 };
 const BOOKING_STATUS_LABEL = { requested: "ඉල්ලා ඇත", confirmed: "තහවුරුයි", completed: "අවසන්", declined: "ප්‍රතික්ෂේපයි", cancelled: "අවලංගුයි", in_progress: "සිදුවෙමින්" };
-const PAYMENT_LABEL = { cash_on_completion: "අවසානයේ මුදලින්", deposit_plus_cash: "අත්තිකාරම + මුදල", online_prepay: "Online" };
+const PAYMENT_LABEL = { cash_on_completion: "වැඩ අවසන් වූ පසු මුදලින්" };
 
 function openBooking(jobId, providerId) {
   const backend = window.PodiBackend;
@@ -2983,7 +3072,7 @@ function openBooking(jobId, providerId) {
   bookingCtx.providerUid = providerId;
   bookingCtx.amount = provider?.effectiveRate || provider?.rate || 0;
   $("#bookingProviderName").textContent = provider ? `${provider.name} — වෙන් කරන්න` : "සේවාව වෙන් කරන්න";
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   $("#bookingDate").min = today;
   $("#bookingDate").value = job?.date && job.date >= today ? job.date : today;
   $("#bookingPaymentNote").textContent = PAYMENT_NOTES[$("#bookingPayment").value] || "";
@@ -2995,6 +3084,10 @@ async function refreshBookingAvailability() {
   const date = $("#bookingDate").value;
   const el = $("#bookingAvailability");
   if (!date || !bookingCtx.providerUid) { el.textContent = ""; return; }
+  $all("input[name='bookingSlot']").forEach((input) => {
+    input.disabled = false;
+    input.parentElement.style.opacity = "1";
+  });
   el.textContent = "ලබාගත හැකි වේලාවන් පරීක්ෂා කරමින්...";
   try {
     const { occupied } = await window.PodiBackend.getAvailability(bookingCtx.providerUid, date, date);
@@ -3051,9 +3144,13 @@ async function renderAvailabilityCalendar() {
   panel.hidden = false;
   const cal = $("#availabilityCalendar");
   cal.innerHTML = `<p class="muted">පූරණය වෙමින්...</p>`;
-  const now = new Date();
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
   const days = [];
-  for (let i = 0; i < 14; i += 1) days.push(new Date(now.getTime() + i * 86400000).toISOString().slice(0, 10));
+  for (let i = 0; i < 14; i += 1) {
+    const date = new Date(today);
+    date.setDate(date.getDate() + i);
+    days.push(date.toISOString().slice(0, 10));
+  }
   let occupied = [];
   try {
     const result = await window.PodiBackend.getAvailability(currentProviderUid, days[0], days[days.length - 1]);
@@ -3109,8 +3206,9 @@ function renderBookingCard(booking) {
   return `<div class="booking-card">
     <div><span class="booking-status ${booking.status}">${BOOKING_STATUS_LABEL[booking.status] || booking.status}</span></div>
     <strong>${escapeHTML(booking.role === "provider" ? "පාරිභෝගික ඉල්ලීමක්" : booking.providerName || "සේවා සපයන්නා")}</strong>
+    <p class="booking-meta">${escapeHTML(booking.jobDescription || "")}</p>
     <p class="booking-meta">${escapeHTML(dates)} · ${escapeHTML(slots)}</p>
-    <p class="booking-meta">ගෙවීම: ${PAYMENT_LABEL[booking.paymentMethod] || "-"}</p>
+      <p class="booking-meta">ගෙවීම: ${PAYMENT_LABEL[booking.paymentMethod] || "වැඩ අවසන් වූ පසු මුදලින්"}</p>
     <div class="row-actions">${actions.join("")}</div>
     ${rateWidget}
     <div class="contact-reveal" id="contact-${booking.id}" hidden></div>

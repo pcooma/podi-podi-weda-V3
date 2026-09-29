@@ -24,6 +24,7 @@ const TABS = Object.freeze({
   USERS: 'DB_Users',
   DOCUMENTS: 'DB_Documents',
   JOBS: 'DB_Jobs',
+  REQUESTS: 'DB_RequestKeys',
   BOOKINGS: 'DB_Bookings',
   RATINGS: 'DB_Ratings',
   AUDIT: 'DB_Audit'
@@ -33,6 +34,7 @@ const HEADERS = Object.freeze({
   DB_Users: ['user_uid','firebase_uid','email','username','display_name','roles_json','status','district','category','skills_json','phone','experience_years','rate_lkr','profile_folder_id','profile_json_file_id','created_at','updated_at','lat','lng','service_radius_km','engagement_types_json','days_per_week','rating_sum','rating_count'],
   DB_Documents: ['document_id','user_uid','document_type','original_filename','mime_type','size_bytes','drive_file_id','status','created_at'],
   DB_Jobs: ['job_id','client_uid','category','description','district','urgency','budget_lkr','requested_date','job_size','workers_needed','materials_by','access_slots_json','status','created_at','updated_at','lat','lng','engagement_type','estimated_hours','duration_days','days_per_week'],
+  DB_RequestKeys: ['request_key','client_uid','job_id','created_at'],
   DB_Bookings: ['booking_id','job_id','client_uid','provider_uid','status','agreed_amount_lkr','created_at','updated_at','start_date','end_date','slots_json','payment_method','payment_status'],
   DB_Ratings: ['rating_id','booking_id','rater_uid','ratee_uid','role','stars','comment','created_at'],
   DB_Audit: ['audit_id','actor_uid','action','target_type','target_id','metadata_json','created_at']
@@ -105,6 +107,15 @@ function doPost(e) {
   const action = clean_(request.action, 60);
   try {
     if (action === 'health') return json_({ok: true, build: BUILD, time: new Date().toISOString()});
+    if (action === 'admin_login') return json_({ok: true, data: adminLogin_(request.adminKey)});
+    if (action === 'admin_list_pending') {
+      const admin = verifyAdminSession_(request.adminSessionToken);
+      return json_({ok: true, data: listPendingProviders_(admin)});
+    }
+    if (action === 'admin_update_provider') {
+      const admin = verifyAdminSession_(request.adminSessionToken);
+      return json_({ok: true, data: setProviderStatus_(request.payload || {}, admin.email)});
+    }
     if (action === 'admin_setup') {
       requireAdmin_(request.adminKey);
       return json_({ok: true, data: setup()});
@@ -194,7 +205,7 @@ function saveProfile_(identity, input) {
       username: profile.username,
       display_name: profile.displayName,
       roles: ['provider'],
-      status: existing ? existing.status : 'pending_review',
+      status: existing ? (existing.status === 'rejected' ? 'pending_review' : existing.status) : 'pending_review',
       district: profile.district,
       category: profile.category,
       skills: profile.skills,
@@ -294,6 +305,11 @@ function listDocuments_(identity) {
 
 function submitJob_(identity, input) {
   requireVerifiedEmail_(identity);
+  const requestKey = clean_(input.requestKey, 100);
+  if (requestKey) {
+    const existingRequest = rows_(TABS.REQUESTS).find(function(row) { return row.request_key === requestKey && row.client_uid === identity.localId; });
+    if (existingRequest) return {id: existingRequest.job_id, status: 'matching', createdAt: existingRequest.created_at, existing: true};
+  }
   const now = new Date().toISOString();
   const record = {
     job_id: Utilities.getUuid(),
@@ -319,7 +335,18 @@ function submitJob_(identity, input) {
     days_per_week: input.daysPerWeek == null ? '' : number_(input.daysPerWeek, 0, 7)
   };
   if (!record.category || !record.district) throw new Error('Category and district are required.');
-  appendObject_(sheet_(TABS.JOBS), record);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    if (requestKey) {
+      const existingRequest = rows_(TABS.REQUESTS).find(function(row) { return row.request_key === requestKey && row.client_uid === identity.localId; });
+      if (existingRequest) return {id: existingRequest.job_id, status: 'matching', createdAt: existingRequest.created_at, existing: true};
+    }
+    appendObject_(sheet_(TABS.JOBS), record);
+    if (requestKey) appendObject_(sheet_(TABS.REQUESTS), {request_key: requestKey, client_uid: identity.localId, job_id: record.job_id, created_at: now});
+  } finally {
+    lock.releaseLock();
+  }
   audit_(identity.localId, 'job.create', 'job', record.job_id, {category: record.category, district: record.district});
   return {id: record.job_id, status: record.status, createdAt: now};
 }
@@ -334,7 +361,22 @@ function searchProviders_(identity, input) {
   const page = Math.max(1, Number(input.page || 1));
   const pageSize = Math.min(50, Math.max(1, Number(input.pageSize || 20)));
   const filtered = approvedProviders_().filter(function(row) {
-    return (!category || row.category === category) && (hasGeo || !district || row.district === district);
+    if (category && row.category !== category) return false;
+    if (!hasGeo && district && row.district !== district) return false;
+    if (hasGeo && row.lat !== '' && row.lat != null && row.lng !== '' && row.lng != null) {
+      const distance = distanceKm_(Number(input.lat), Number(input.lng), Number(row.lat), Number(row.lng));
+      const radius = Number(row.service_radius_km || 15) || 15;
+      if (distance > radius) return false;
+    } else if (hasGeo && district && row.district !== district) {
+      return false;
+    }
+    return true;
+  });
+  filtered.sort(function(a, b) {
+    if (!hasGeo) return String(a.display_name).localeCompare(String(b.display_name));
+    const aDistance = a.lat !== '' && a.lat != null && a.lng !== '' && a.lng != null ? distanceKm_(Number(input.lat), Number(input.lng), Number(a.lat), Number(a.lng)) : Number.POSITIVE_INFINITY;
+    const bDistance = b.lat !== '' && b.lat != null && b.lng !== '' && b.lng != null ? distanceKm_(Number(input.lat), Number(input.lng), Number(b.lat), Number(b.lng)) : Number.POSITIVE_INFINITY;
+    return aDistance - bDistance;
   });
   return {
     items: filtered.slice((page - 1) * pageSize, page * pageSize).map(publicProvider_),
@@ -345,10 +387,18 @@ function searchProviders_(identity, input) {
   };
 }
 
+function distanceKm_(lat1, lng1, lat2, lng2) {
+  const rad = function(value) { return value * Math.PI / 180; };
+  const dLat = rad(lat2 - lat1);
+  const dLng = rad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function createBooking_(identity, input) {
   requireVerifiedEmail_(identity);
   const job = findBy_(TABS.JOBS, 'job_id', clean_(input.jobId, 80));
-  if (!job || job.client_uid !== identity.localId) throw new Error('Job not found.');
+  if (!job || job.client_uid !== identity.localId || job.status === 'cancelled') throw new Error('Job not found.');
   const provider = findBy_(TABS.USERS, 'user_uid', clean_(input.providerUid, 80));
   if (!provider || provider.status !== 'approved') throw new Error('Provider is not available.');
   const startDate = clean_(input.startDate, 20) || String(job.requested_date || '').slice(0, 10);
@@ -360,6 +410,10 @@ function createBooking_(identity, input) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
+    const existing = rows_(TABS.BOOKINGS).find(function(row) {
+      return row.job_id === job.job_id && row.client_uid === identity.localId && row.provider_uid === provider.user_uid && ['requested','confirmed','in_progress'].indexOf(row.status) >= 0;
+    });
+    if (existing) return {id: existing.booking_id, status: existing.status, paymentMethod: existing.payment_method, existing: true};
     if (bookingOverlaps_(provider.user_uid, dates, slots, null)) throw new Error('That time is already booked. Please choose another date or time.');
     const now = new Date().toISOString();
     const record = {
@@ -384,6 +438,8 @@ function setBookingDecision_(identity, input, status) {
   if (!booking) throw new Error('Booking not found.');
   const me = findBy_(TABS.USERS, 'firebase_uid', identity.localId);
   if (!me || booking.provider_uid !== me.user_uid) throw new Error('Only the assigned provider can update this booking.');
+  const allowedFrom = {confirmed: ['requested'], declined: ['requested'], completed: ['confirmed','in_progress']};
+  if (!allowedFrom[status] || allowedFrom[status].indexOf(booking.status) < 0) throw new Error('This booking can no longer be changed in that way.');
   const now = new Date().toISOString();
   if (status === 'confirmed') {
     const lock = LockService.getScriptLock();
@@ -411,6 +467,7 @@ function cancelBooking_(identity, input) {
   const isClient = booking.client_uid === identity.localId;
   const isProvider = me && booking.provider_uid === me.user_uid;
   if (!isClient && !isProvider) throw new Error('Not your booking.');
+  if (['requested','confirmed'].indexOf(booking.status) < 0) throw new Error('This booking can no longer be cancelled.');
   updateBy_(sheet_(TABS.BOOKINGS), 'booking_id', booking.booking_id, {status: 'cancelled', updated_at: new Date().toISOString()});
   audit_(identity.localId, 'booking.cancel', 'booking', booking.booking_id, {});
   return {id: booking.booking_id, status: 'cancelled'};
@@ -447,12 +504,15 @@ function getBookings_(identity) {
     return row.status !== 'blocked' && (row.client_uid === identity.localId || (myUid && row.provider_uid === myUid));
   }).map(function(row) {
     const provider = findBy_(TABS.USERS, 'user_uid', row.provider_uid);
+    const job = findBy_(TABS.JOBS, 'job_id', row.job_id);
     return {
       id: row.booking_id, jobId: row.job_id, status: row.status,
       role: row.client_uid === identity.localId ? 'client' : 'provider',
       startDate: row.start_date, endDate: row.end_date, slots: jsonArray_(row.slots_json),
       paymentMethod: row.payment_method, paymentStatus: row.payment_status,
       amount: Number(row.agreed_amount_lkr || 0),
+      jobDescription: job ? job.description : '',
+      jobCategory: job ? job.category : '',
       providerName: provider ? provider.display_name : '', providerUid: row.provider_uid,
       ratedByMe: Boolean(myRatedBookings[row.booking_id]),
       createdAt: row.created_at
@@ -482,6 +542,11 @@ function blockDates_(identity, input) {
   if (!startDate) throw new Error('Please choose a date.');
   const endDate = clean_(input.endDate, 20) || startDate;
   const slots = normSlots_(input.slots);
+  const dates = dateList_(startDate, endDate);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    if (bookingOverlaps_(me.user_uid, dates, slots, null)) throw new Error('One or more selected times are already booked.');
   const now = new Date().toISOString();
   const record = {
     booking_id: Utilities.getUuid(), job_id: 'self-block', client_uid: identity.localId,
@@ -491,6 +556,9 @@ function blockDates_(identity, input) {
   appendObject_(sheet_(TABS.BOOKINGS), record);
   audit_(me.user_uid, 'availability.block', 'booking', record.booking_id, {startDate: startDate});
   return {id: record.booking_id, status: 'blocked'};
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // Either party rates the other after a booking is completed.
@@ -530,8 +598,8 @@ function submitRating_(identity, input) {
   return {ok: true, stars: stars};
 }
 
-function setProviderStatus_(input) {
-  const allowed = ['pending_review','approved','suspended','rejected'];
+function setProviderStatus_(input, adminEmail) {
+  const allowed = ['approved','suspended','rejected'];
   const status = clean_(input.status, 30);
   if (allowed.indexOf(status) < 0) throw new Error('Invalid provider status.');
   const userUid = clean_(input.userUid, 80);
@@ -543,7 +611,7 @@ function setProviderStatus_(input) {
   profile.status = status;
   profile.updated_at = new Date().toISOString();
   file.setContent(JSON.stringify(profile, null, 2));
-  audit_('admin', 'provider.status', 'user', userUid, {status: status});
+  audit_(adminEmail || 'admin', 'provider.status', 'user', userUid, {status: status});
   CacheService.getScriptCache().remove('approved_providers');
   return {userUid: userUid, status: status};
 }
@@ -567,14 +635,21 @@ function requestOtp_(input) {
   const email = normEmail_(input.email);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Enter a valid email address.');
   const cache = CacheService.getScriptCache();
-  const globalKey = 'otp_global_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmm');
-  const globalCount = Number(cache.get(globalKey) || 0);
-  if (globalCount >= 30) throw new Error('Too many sign-in requests. Please try again later.');
-  if (cache.get('otp_rl_' + email)) throw new Error('Please wait a minute before requesting another code.');
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  cache.put('otp_' + email, JSON.stringify({hash: otpHash_(code), attempts: 0}), 600);
-  cache.put('otp_rl_' + email, '1', 60);
-  cache.put(globalKey, String(globalCount + 1), 120);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const globalKey = 'otp_global_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmm');
+    const globalCount = Number(cache.get(globalKey) || 0);
+    if (globalCount >= 30) throw new Error('Too many sign-in requests. Please try again later.');
+    if (cache.get('otp_rl_' + email)) throw new Error('Please wait a minute before requesting another code.');
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    cache.put('otp_' + email, JSON.stringify({hash: otpHash_(code), attempts: 0}), 600);
+    cache.put('otp_rl_' + email, '1', 60);
+    cache.put(globalKey, String(globalCount + 1), 120);
+    cache.put('otp_email_' + email, '1', 86400);
+  } finally {
+    lock.releaseLock();
+  }
   MailApp.sendEmail({
     to: email,
     subject: 'Podi Podi Weda — your verification code',
@@ -588,18 +663,66 @@ function verifyOtp_(input) {
   const email = normEmail_(input.email);
   const code = clean_(input.code, 6);
   const cache = CacheService.getScriptCache();
-  const raw = cache.get('otp_' + email);
-  if (!raw) throw new Error('Code expired. Please request a new one.');
-  const record = JSON.parse(raw);
-  if (record.attempts >= 5) { cache.remove('otp_' + email); throw new Error('Too many attempts. Request a new code.'); }
-  if (!secureEqual_(otpHash_(code), record.hash)) {
-    record.attempts += 1;
-    cache.put('otp_' + email, JSON.stringify(record), 600);
-    throw new Error('Incorrect code. Please try again.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    if (!cache.get('otp_email_' + email)) throw new Error('Request a sign-in code first.');
+    const raw = cache.get('otp_' + email);
+    if (!raw) { cache.remove('otp_email_' + email); throw new Error('Code expired. Please request a new one.'); }
+    const record = JSON.parse(raw);
+    if (record.attempts >= 5) { cache.remove('otp_' + email); cache.remove('otp_email_' + email); throw new Error('Too many attempts. Request a new code.'); }
+    if (!secureEqual_(otpHash_(code), record.hash)) {
+      record.attempts += 1;
+      cache.put('otp_' + email, JSON.stringify(record), 600);
+      if (record.attempts >= 5) cache.remove('otp_email_' + email);
+      throw new Error(record.attempts >= 5 ? 'Too many attempts. Request a new code.' : 'Incorrect code. Please try again.');
+    }
+    cache.remove('otp_' + email);
+    cache.remove('otp_email_' + email);
+  } finally {
+    lock.releaseLock();
   }
-  cache.remove('otp_' + email);
   audit_(email, 'auth.otp_verify', 'auth', email, {});
   return {sessionToken: signSession_(email, 30 * 24 * 3600), email: email};
+}
+
+function adminLogin_(adminKey) {
+  requireAdmin_(adminKey);
+  const secret = sessionSecret_();
+  const expiry = Date.now() + 2 * 60 * 60 * 1000;
+  const payload = Utilities.base64EncodeWebSafe(JSON.stringify({sub: 'admin', exp: expiry, role: 'admin'}));
+  const signature = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(payload, secret));
+  audit_('admin', 'admin.session.start', 'auth', 'admin', {});
+  return {adminSessionToken: payload + '.' + signature, expiresAt: expiry};
+}
+
+function verifyAdminSession_(token) {
+  if (!token) throw new Error('Admin sign-in required.');
+  const parts = String(token).split('.');
+  if (parts.length !== 2) throw new Error('Invalid admin session.');
+  const expected = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(parts[0], sessionSecret_()));
+  if (!secureEqual_(parts[1], expected)) throw new Error('Invalid admin session.');
+  const payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString());
+  if (payload.role !== 'admin' || !payload.exp || payload.exp < Date.now()) throw new Error('Admin session expired.');
+  return {email: 'admin', role: 'admin'};
+}
+
+function listPendingProviders_(admin) {
+  return rows_(TABS.USERS).filter(function(row) { return row.status === 'pending_review'; })
+    .map(function(row) {
+      let evidenceSummary = '';
+      if (row.profile_json_file_id) {
+        try { evidenceSummary = JSON.parse(DriveApp.getFileById(row.profile_json_file_id).getBlob().getDataAsString()).evidence_summary || ''; }
+        catch (error) { evidenceSummary = 'ලේඛන විස්තරය කියවිය නොහැක'; }
+      }
+      return {
+        userUid: row.user_uid, displayName: row.display_name, username: row.username,
+        category: row.category, district: row.district, phone: row.phone,
+        experienceYears: Number(row.experience_years || 0),
+        evidenceSummary: evidenceSummary,
+        createdAt: row.created_at
+      };
+    });
 }
 
 function signSession_(email, ttlSeconds) {
@@ -686,7 +809,9 @@ function approvedProviders_() {
   const cached = cache.get('approved_providers');
   if (cached) return JSON.parse(cached);
   const records = rows_(TABS.USERS).filter(function(row) { return row.status === 'approved'; });
-  cache.put('approved_providers', JSON.stringify(records), 300);
+  // CacheService rejects entries larger than its per-key limit. At pilot scale
+  // this is an optimization only; a large provider list must still be usable.
+  try { cache.put('approved_providers', JSON.stringify(records), 300); } catch (error) { console.warn('Provider cache skipped:', error.message); }
   return records;
 }
 

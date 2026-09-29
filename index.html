@@ -38,6 +38,7 @@
             <button class="primary-action" id="installAppButton" type="button" hidden>📲 App එක ලබාගන්න</button>
             <button class="ghost-action" id="bookingsToggle" type="button" hidden>වෙන් කිරීම්</button>
             <button class="ghost-action" id="accountToggle" type="button">ගිණුම</button>
+            <button class="ghost-action" id="adminToggle" type="button">පරිපාලනය</button>
           </div>
         </header>
 
@@ -63,6 +64,19 @@
               <button class="ghost-action" id="logoutButton" type="button" hidden>ඉවත් වන්න</button>
             </div>
           </form>
+        </section>
+
+        <section class="account-panel" id="adminPanel" hidden aria-label="පරිපාලනය">
+          <div>
+            <p class="eyebrow">පරිපාලක පිවිසුම</p>
+            <h2>ලියාපදිංචි සේවා සපයන්නන්</h2>
+            <p id="adminStatus">පරිපාලක යතුරෙන් ඇතුළු වන්න.</p>
+          </div>
+          <form id="adminForm" class="account-form">
+            <label><span>පරිපාලක යතුර</span><input id="adminKey" type="password" autocomplete="current-password" required></label>
+            <div class="row-actions"><button class="primary-action" id="adminLoginButton" type="submit">ඇතුළු වන්න</button><button class="ghost-action" id="adminLogoutButton" type="button" hidden>ඉවත් වන්න</button></div>
+          </form>
+          <div id="adminQueue" class="admin-list"></div>
         </section>
 
         <section class="landing-band" aria-label="Main entry points">
