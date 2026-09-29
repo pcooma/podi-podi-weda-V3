@@ -134,10 +134,16 @@ window.PodiBackend = {
   revealContact: (bookingId) => api("reveal_contact", { method: "POST", body: JSON.stringify({ bookingId }) }),
   blockDates: (block) => api("block_dates", { method: "POST", body: JSON.stringify(block) }),
   submitRating: (rating) => api("submit_rating", { method: "POST", body: JSON.stringify(rating) }),
-  adminLogin: async (adminKey) => {
-    const data = await rawApi("admin_login", {adminKey});
-    try { localStorage.setItem(ADMIN_SESSION_KEY, data.adminSessionToken); } catch (error) {}
-    return data;
+  adminLogin: async (email, password) => {
+    const response = await fetch(config.appsScriptUrl, {
+      method: "POST",
+      headers: {"Content-Type": "text/plain;charset=utf-8"},
+      body: JSON.stringify({action: "admin_login", email, password})
+    });
+    const envelope = await response.json().catch(() => ({}));
+    if (!response.ok || envelope.ok === false) throw new Error(envelope.error || `Request failed (${response.status})`);
+    try { localStorage.setItem(ADMIN_SESSION_KEY, envelope.data.adminSessionToken); } catch (error) {}
+    return envelope.data;
   },
   adminLogout() { try { localStorage.removeItem(ADMIN_SESSION_KEY); } catch (error) {} },
   adminSessionActive() {
@@ -146,6 +152,7 @@ window.PodiBackend = {
       return Boolean(token && tokenExpiry(token) > Date.now());
     } catch (error) { return false; }
   },
+  adminDashboard: () => adminApi("admin_dashboard"),
   adminListPending: () => adminApi("admin_list_pending"),
   adminUpdateProvider: (userUid, status) => adminApi("admin_update_provider", {payload: {userUid, status}})
 };

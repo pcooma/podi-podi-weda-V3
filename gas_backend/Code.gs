@@ -13,7 +13,7 @@
  *   ROOT_FOLDER_ID, USERS_FOLDER_ID, DB_SPREADSHEET_ID, MAX_UPLOAD_BYTES
  */
 
-const BUILD = '2026-09-29-drive-v10-mobile-pin';
+const BUILD = '2026-09-29-drive-v11-admin-dashboard';
 const DEFAULTS = Object.freeze({
   ROOT_FOLDER_ID: '1zwnXP1BQJudpeQSGpUPOob5GpEUL3mH5',
   USERS_FOLDER_ID: '193a7fFJaV9QfzK5QZj9jQ95U1OQ_-oVk',
@@ -96,10 +96,14 @@ function doPost(e) {
   const action = clean_(request.action, 60);
   try {
     if (action === 'health') return json_({ok: true, build: BUILD, time: new Date().toISOString()});
-    if (action === 'admin_login') return json_({ok: true, data: adminLogin_(request.adminKey)});
+    if (action === 'admin_login') return json_({ok: true, data: adminLogin_(request)});
     if (action === 'admin_list_pending') {
       const admin = verifyAdminSession_(request.adminSessionToken);
       return json_({ok: true, data: listPendingProviders_(admin)});
+    }
+    if (action === 'admin_dashboard') {
+      const admin = verifyAdminSession_(request.adminSessionToken);
+      return json_({ok: true, data: adminDashboard_(admin)});
     }
     if (action === 'admin_update_provider') {
       const admin = verifyAdminSession_(request.adminSessionToken);
@@ -727,8 +731,22 @@ function resetPin_(input) {
   }
 }
 
-function adminLogin_(adminKey) {
-  requireAdmin_(adminKey);
+// Admin sign-in. Preferred: email + password, checked against the
+// ADMIN_EMAIL / ADMIN_PASSWORD Script Properties (never stored in the repo).
+// Falls back to the legacy ADMIN_KEY if those properties are not set yet.
+function adminLogin_(request) {
+  const props = PropertiesService.getScriptProperties();
+  const adminEmail = String(props.getProperty('ADMIN_EMAIL') || '').trim().toLowerCase();
+  const adminPass = String(props.getProperty('ADMIN_PASSWORD') || '');
+  if (adminEmail && adminPass) {
+    const email = clean_((request && request.email) || '', 150).toLowerCase();
+    const password = String((request && request.password) || '');
+    const ok = email.length === adminEmail.length && password.length === adminPass.length
+      && secureEqual_(email, adminEmail) && secureEqual_(password, adminPass);
+    if (!ok) throw new Error('Invalid admin email or password.');
+  } else {
+    requireAdmin_((request && (request.password || request.adminKey)) || '');
+  }
   const secret = sessionSecret_();
   const expiry = Date.now() + 2 * 60 * 60 * 1000;
   const payload = Utilities.base64EncodeWebSafe(JSON.stringify({sub: 'admin', exp: expiry, role: 'admin'}));
@@ -764,6 +782,95 @@ function listPendingProviders_(admin) {
         createdAt: row.created_at
       };
     });
+}
+
+// Aggregated view for the admin dashboard: activity, transactions,
+// revenue and feedback. Computed on demand from the sheets.
+function adminDashboard_(admin) {
+  const users = rows_(TABS.USERS);
+  const jobs = rows_(TABS.JOBS);
+  const bookings = rows_(TABS.BOOKINGS);
+  const ratings = rows_(TABS.RATINGS);
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const since7 = now - 7 * dayMs;
+  const since30 = now - 30 * dayMs;
+  const ts = function (value) { const t = Date.parse(value || ''); return isNaN(t) ? 0 : t; };
+
+  // Providers vs seekers. A provider row carries a category.
+  const providers = users.filter(function (r) { return String(r.category || '').trim(); });
+  const byStatus = function (list, field) {
+    const out = {};
+    list.forEach(function (r) { const k = String(r[field] || 'unknown'); out[k] = (out[k] || 0) + 1; });
+    return out;
+  };
+
+  const bookingStatus = byStatus(bookings, 'status');
+  const earning = bookings.filter(function (b) { return b.status === 'confirmed' || b.status === 'completed'; });
+  const revenueGmv = earning.reduce(function (sum, b) { return sum + Number(b.agreed_amount_lkr || 0); }, 0);
+  const completedGmv = bookings.filter(function (b) { return b.status === 'completed'; })
+    .reduce(function (sum, b) { return sum + Number(b.agreed_amount_lkr || 0); }, 0);
+
+  const nameOf = {};
+  users.forEach(function (r) { nameOf[r.user_uid] = r.display_name || r.username || r.phone || r.user_uid; });
+
+  const recentBookings = bookings.slice().sort(function (a, b) { return ts(b.created_at) - ts(a.created_at); })
+    .slice(0, 15).map(function (b) {
+      return {
+        bookingId: b.booking_id, status: b.status,
+        client: nameOf[b.client_uid] || b.client_uid,
+        provider: nameOf[b.provider_uid] || b.provider_uid,
+        amount: Number(b.agreed_amount_lkr || 0),
+        paymentMethod: b.payment_method || '', paymentStatus: b.payment_status || '',
+        startDate: b.start_date || '', createdAt: b.created_at || ''
+      };
+    });
+
+  const ratingStars = ratings.map(function (r) { return Number(r.stars || 0); }).filter(function (n) { return n > 0; });
+  const avgRating = ratingStars.length ? ratingStars.reduce(function (a, b) { return a + b; }, 0) / ratingStars.length : 0;
+  const recentFeedback = ratings.slice().sort(function (a, b) { return ts(b.created_at) - ts(a.created_at); })
+    .slice(0, 12).filter(function (r) { return String(r.comment || '').trim(); })
+    .map(function (r) {
+      return {
+        stars: Number(r.stars || 0), comment: r.comment || '', role: r.role || '',
+        from: nameOf[r.rater_uid] || r.rater_uid, to: nameOf[r.ratee_uid] || r.ratee_uid,
+        createdAt: r.created_at || ''
+      };
+    });
+
+  return {
+    generatedAt: new Date().toISOString(),
+    users: {
+      total: users.length,
+      providers: providers.length,
+      seekers: users.length - providers.length,
+      new7d: users.filter(function (r) { return ts(r.created_at) >= since7; }).length,
+      new30d: users.filter(function (r) { return ts(r.created_at) >= since30; }).length,
+      providersByStatus: byStatus(providers, 'status'),
+      pendingReview: providers.filter(function (r) { return r.status === 'pending_review'; }).length
+    },
+    jobs: {
+      total: jobs.length,
+      new7d: jobs.filter(function (r) { return ts(r.created_at) >= since7; }).length,
+      byStatus: byStatus(jobs, 'status')
+    },
+    bookings: {
+      total: bookings.length,
+      new7d: bookings.filter(function (r) { return ts(r.created_at) >= since7; }).length,
+      byStatus: bookingStatus,
+      recent: recentBookings
+    },
+    revenue: {
+      gmvActive: Math.round(revenueGmv),
+      gmvCompleted: Math.round(completedGmv),
+      count: earning.length
+    },
+    feedback: {
+      count: ratings.length,
+      avgRating: Math.round(avgRating * 100) / 100,
+      recent: recentFeedback
+    }
+  };
 }
 
 function signSession_(subject, ttlSeconds) {

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f5c542">
     <title>පොඩි පොඩි වැඩ | සේවා ලබාගන්න</title>
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=39">
+    <link rel="stylesheet" href="styles.css?v=41">
   </head>
   <body>
     <div class="app-shell">
@@ -80,15 +80,30 @@
 
         <section class="account-panel" id="adminPanel" hidden aria-label="පරිපාලනය">
           <div>
-            <p class="eyebrow">පරිපාලක පිවිසුම</p>
-            <h2>ලියාපදිංචි සේවා සපයන්නන්</h2>
-            <p id="adminStatus">පරිපාලක යතුරෙන් ඇතුළු වන්න.</p>
+            <p class="eyebrow">පරිපාලක උපකරණ පුවරුව</p>
+            <h2>Admin Dashboard</h2>
+            <p id="adminStatus">පරිපාලක ඊමේල් සහ මුරපදයෙන් ඇතුළු වන්න.</p>
           </div>
           <form id="adminForm" class="account-form">
-            <label><span>පරිපාලක යතුර</span><input id="adminKey" type="password" autocomplete="current-password" required></label>
+            <label><span>පරිපාලක ඊමේල්</span><input id="adminEmail" type="email" autocomplete="username" required></label>
+            <label><span>මුරපදය</span><input id="adminPassword" type="password" autocomplete="current-password" required></label>
             <div class="row-actions"><button class="primary-action" id="adminLoginButton" type="submit">ඇතුළු වන්න</button><button class="ghost-action" id="adminLogoutButton" type="button" hidden>ඉවත් වන්න</button></div>
           </form>
-          <div id="adminQueue" class="admin-list"></div>
+          <div id="adminDashboard" class="admin-dashboard" hidden>
+            <div class="row-actions" style="justify-content:space-between;align-items:center">
+              <div class="admin-tabs">
+                <button class="ghost-action is-active" type="button" data-admin-tab="overview">දළ විශ්ලේෂණය</button>
+                <button class="ghost-action" type="button" data-admin-tab="queue">අනුමැතිය</button>
+                <button class="ghost-action" type="button" data-admin-tab="bookings">ගනුදෙනු</button>
+                <button class="ghost-action" type="button" data-admin-tab="feedback">ප්‍රතිචාර</button>
+              </div>
+              <button class="ghost-action" id="adminRefresh" type="button">↻ නැවුම් කරන්න</button>
+            </div>
+            <div id="adminTabOverview" class="admin-tab-panel"></div>
+            <div id="adminTabQueue" class="admin-tab-panel" hidden><div id="adminQueue" class="admin-list"></div></div>
+            <div id="adminTabBookings" class="admin-tab-panel" hidden></div>
+            <div id="adminTabFeedback" class="admin-tab-panel" hidden></div>
+          </div>
         </section>
 
         <section class="landing-band" aria-label="Main entry points">
@@ -516,7 +531,7 @@
 
     <script>window.PODI_PODI_CONFIG = window.PODI_PODI_CONFIG || null;</script>
     <script src="config.js"></script>
-    <script src="app.js?v=39"></script>
-    <script type="module" src="backend-client.js?v=9"></script>
+    <script src="app.js?v=41"></script>
+    <script type="module" src="backend-client.js?v=10"></script>
   </body>
 </html>

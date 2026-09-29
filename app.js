@@ -2734,13 +2734,11 @@ on("#adminForm", "submit", async (event) => {
   const button = $("#adminLoginButton");
   button.disabled = true;
   try {
-    await window.PodiBackend.adminLogin($("#adminKey").value);
-    $("#adminKey").value = "";
-    $("#adminStatus").textContent = "පරීක්ෂාවට ඇති ලියාපදිංචි කිරීම්";
-    $("#adminLogoutButton").hidden = false;
-    await renderAdminQueue();
+    await window.PodiBackend.adminLogin($("#adminEmail").value.trim(), $("#adminPassword").value);
+    $("#adminPassword").value = "";
+    syncAdminPanel();
   } catch (error) {
-    toast("පිවිසීමට නොහැකි විය. යතුර පරීක්ෂා කර නැවත උත්සාහ කරන්න.");
+    toast("පිවිසීමට නොහැකි විය. ඊමේල් සහ මුරපදය පරීක්ෂා කරන්න.");
   } finally {
     button.disabled = false;
   }
@@ -2748,22 +2746,95 @@ on("#adminForm", "submit", async (event) => {
 
 on("#adminLogoutButton", "click", () => {
   window.PodiBackend.adminLogout();
-  $("#adminQueue").replaceChildren();
-  $("#adminStatus").textContent = "පරිපාලක යතුරෙන් ඇතුළු වන්න.";
-  $("#adminLogoutButton").hidden = true;
+  syncAdminPanel();
+});
+
+on("#adminRefresh", "click", () => loadAdminDashboard());
+
+document.addEventListener("click", (event) => {
+  const tab = event.target.closest("[data-admin-tab]");
+  if (!tab) return;
+  const name = tab.dataset.adminTab;
+  document.querySelectorAll("[data-admin-tab]").forEach((b) => b.classList.toggle("is-active", b === tab));
+  $("#adminTabOverview").hidden = name !== "overview";
+  $("#adminTabQueue").hidden = name !== "queue";
+  $("#adminTabBookings").hidden = name !== "bookings";
+  $("#adminTabFeedback").hidden = name !== "feedback";
+  if (name === "queue") renderAdminQueue();
 });
 
 function syncAdminPanel() {
   const token = window.PodiBackend?.adminSessionActive?.() || false;
   $("#adminForm").hidden = token;
   $("#adminLogoutButton").hidden = !token;
+  $("#adminDashboard").hidden = !token;
   if (token) {
-    $("#adminStatus").textContent = "පරීක්ෂාවට ඇති ලියාපදිංචි කිරීම්";
-    renderAdminQueue();
+    $("#adminStatus").textContent = "වෙබ් අඩවියේ ක්‍රියාකාරකම් සහ කාර්ය සාධනය";
+    loadAdminDashboard();
+  } else {
+    $("#adminStatus").textContent = "පරිපාලක ඊමේල් සහ මුරපදයෙන් ඇතුළු වන්න.";
   }
 }
 
 syncAdminPanel();
+
+const LKR = (n) => "රු. " + Number(n || 0).toLocaleString("en-LK");
+
+async function loadAdminDashboard() {
+  const overview = $("#adminTabOverview");
+  const bookingsPanel = $("#adminTabBookings");
+  const feedbackPanel = $("#adminTabFeedback");
+  overview.innerHTML = `<p class="muted">පූරණය වෙමින්...</p>`;
+  try {
+    const d = await window.PodiBackend.adminDashboard();
+    const stat = (label, value, sub) =>
+      `<div class="admin-stat"><span class="admin-stat-value">${escapeHTML(String(value))}</span><span class="admin-stat-label">${escapeHTML(label)}</span>${sub ? `<span class="admin-stat-sub">${escapeHTML(sub)}</span>` : ""}</div>`;
+    overview.innerHTML = `
+      <div class="admin-stat-grid">
+        ${stat("මුළු පරිශීලකයෝ", d.users.total, `+${d.users.new7d} (දින 7)`)}
+        ${stat("සේවා සපයන්නෝ", d.users.providers, `${d.users.pendingReview} අනුමැතියට`)}
+        ${stat("සේවා ගන්නෝ", d.users.seekers, "")}
+        ${stat("රැකියා", d.jobs.total, `+${d.jobs.new7d} (දින 7)`)}
+        ${stat("ගනුදෙනු", d.bookings.total, `+${d.bookings.new7d} (දින 7)`)}
+        ${stat("ක්‍රියාකාරී GMV", LKR(d.revenue.gmvActive), `${d.revenue.count} තහවුරු/සම්පූර්ණ`)}
+        ${stat("සම්පූර්ණ ආදායම GMV", LKR(d.revenue.gmvCompleted), "සම්පූර්ණ ගනුදෙනු")}
+        ${stat("සාමාන්‍ය තරු", d.feedback.avgRating || "—", `${d.feedback.count} ප්‍රතිචාර`)}
+      </div>
+      <div class="admin-breakdown">
+        <div><h4>ගනුදෙනු තත්ත්වය</h4>${statusList(d.bookings.byStatus)}</div>
+        <div><h4>සේවා සපයන්නෝ තත්ත්වය</h4>${statusList(d.users.providersByStatus)}</div>
+        <div><h4>රැකියා තත්ත්වය</h4>${statusList(d.jobs.byStatus)}</div>
+      </div>`;
+
+    bookingsPanel.innerHTML = d.bookings.recent.length ? `
+      <table class="admin-table"><thead><tr><th>දිනය</th><th>ගන්නා</th><th>සපයන්නා</th><th>මුදල</th><th>ගෙවීම</th><th>තත්ත්වය</th></tr></thead><tbody>
+      ${d.bookings.recent.map((b) => `<tr>
+        <td>${escapeHTML((b.createdAt || "").slice(0, 10))}</td>
+        <td>${escapeHTML(b.client)}</td>
+        <td>${escapeHTML(b.provider)}</td>
+        <td>${LKR(b.amount)}</td>
+        <td>${escapeHTML(b.paymentMethod || "—")}/${escapeHTML(b.paymentStatus || "—")}</td>
+        <td><span class="admin-badge">${escapeHTML(b.status)}</span></td>
+      </tr>`).join("")}
+      </tbody></table>` : `<p class="muted">තවම ගනුදෙනු නැත.</p>`;
+
+    feedbackPanel.innerHTML = d.feedback.recent.length ? d.feedback.recent.map((f) => `
+      <article class="admin-row">
+        <div><strong>${"★".repeat(Math.max(0, Math.min(5, f.stars)))}${"☆".repeat(5 - Math.max(0, Math.min(5, f.stars)))}</strong>
+          <p>${escapeHTML(f.comment)}</p>
+          <p class="muted">${escapeHTML(f.from)} → ${escapeHTML(f.to)} · ${escapeHTML((f.createdAt || "").slice(0, 10))}</p>
+        </div>
+      </article>`).join("") : `<p class="muted">තවම ප්‍රතිචාර නැත.</p>`;
+  } catch (error) {
+    overview.innerHTML = `<p class="muted">දත්ත ලබාගත නොහැකි විය. නැවත ඇතුළු වන්න.</p>`;
+  }
+}
+
+function statusList(obj) {
+  const entries = Object.entries(obj || {});
+  if (!entries.length) return `<p class="muted">—</p>`;
+  return `<ul class="admin-status-list">${entries.map(([k, v]) => `<li><span>${escapeHTML(k)}</span><strong>${v}</strong></li>`).join("")}</ul>`;
+}
 
 async function renderAdminQueue() {
   const queue = $("#adminQueue");
